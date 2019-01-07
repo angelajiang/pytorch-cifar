@@ -18,8 +18,8 @@ MAX_NUM_BACKPROPS=17500000
 
 EXP_NAME=$EXP_PREFIX
 
-mkdir "/fawnstore2/users/ahjiang/output/cifar10"
-OUTPUT_DIR="/fawnstore2/users/ahjiang/output/cifar10/"$EXP_NAME
+mkdir "/proj/BigLearning/ahjiang/output/cifar10/"
+OUTPUT_DIR="/proj/BigLearning/ahjiang/output/cifar10/"$EXP_NAME
 PICKLE_DIR=$OUTPUT_DIR/pickles
 mkdir $OUTPUT_DIR
 mkdir $PICKLE_DIR
