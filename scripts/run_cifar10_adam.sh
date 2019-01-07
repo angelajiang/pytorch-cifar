@@ -2,6 +2,7 @@ expname=$1
 SAMPLING_MIN=$2
 NET=$3
 BATCH_SIZE=$4
+LR=$5
 
 NUM_TRIALS=1
 
@@ -12,7 +13,6 @@ ulimit -a
 
 EXP_PREFIX=$expname
 SAMPLING_STRATEGY="deterministic"
-LR=0.01
 DECAY=0
 MAX_NUM_BACKPROPS=17500000
 SEED=1337
