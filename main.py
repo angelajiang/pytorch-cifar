@@ -125,10 +125,11 @@ class State:
         if not os.path.exists(target_confidences_pickle_dir):
             os.mkdir(target_confidences_pickle_dir)
 
-    def update_target_confidences(self, epoch, confidences, num_images_backpropped):
+    def update_target_confidences(self, epoch, confidences, results, num_images_backpropped):
         if epoch not in self.target_confidences.keys():
-            self.target_confidences[epoch] = {"confidences": []}
+            self.target_confidences[epoch] = {"confidences": [], "results": []}
         self.target_confidences[epoch]["confidences"] += confidences
+        self.target_confidences[epoch]["results"] += results
         self.target_confidences[epoch]["num_backpropped"] = num_images_backpropped
 
     def write_summaries(self):
@@ -151,6 +152,11 @@ def test(args,
     correct = 0
     total = 0
 
+    if epoch % 10 == 0:
+        write_target_confidences = True
+    else:
+        write_target_confidences = False
+
     with torch.no_grad():
         for batch_idx, (inputs, targets, image_ids) in enumerate(testloader):
             inputs, targets = inputs.to(device), targets.to(device)
@@ -163,15 +169,18 @@ def test(args,
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
 
-            softmax_outputs = nn.Softmax()(outputs)
-            targets_array = targets.cpu().numpy()
-            outputs_array = softmax_outputs.cpu().numpy()
-            confidences = [o[t] for t, o in zip(targets_array, outputs_array)]
-            if epoch % 10 == 0:
+            if write_target_confidences:
+                softmax_outputs = nn.Softmax()(outputs)
+                targets_array = targets.cpu().numpy()
+                outputs_array = softmax_outputs.cpu().numpy()
+                confidences = [o[t] for t, o in zip(targets_array, outputs_array)]
+                results = predicted.eq(targets).data.cpu().numpy().tolist()
                 state.update_target_confidences(epoch,
                                                 confidences,
+                                                results,
                                                 logger.global_num_backpropped)
-                state.write_summaries()
+    if write_target_confidences:
+        state.write_summaries()
 
     test_loss /= len(testloader.dataset)
     print('test_debug,{},{},{},{:.6f},{:.6f},{}'.format(
