@@ -368,7 +368,6 @@ def main(args):
 
     while True:
 
-        epoch += 1
         if stopped: break
 
         trainloader = torch.utils.data.DataLoader(dataset.trainset,
@@ -389,6 +388,7 @@ def main(args):
         probability_by_image_logger.next_epoch()
         selector.next_epoch()
         backpropper.next_epoch()
+        epoch += 1
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
