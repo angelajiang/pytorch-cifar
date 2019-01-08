@@ -364,8 +364,11 @@ def main(args):
     stopped = False
 
 
-    for epoch in range(start_epoch, start_epoch+5000):
+    epoch = start_epoch
 
+    while True:
+
+        epoch += 1
         if stopped: break
 
         trainloader = torch.utils.data.DataLoader(dataset.trainset,
