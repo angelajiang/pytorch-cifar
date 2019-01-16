@@ -340,14 +340,14 @@ def main(args):
         final_backpropper = lib.backproppers.BaselineBackpropper(device,
                                                                  dataset.model,
                                                                  optimizer)
-    elif args.sb_strategy == "random":
+    elif args.sb_strategy == "randomk":
         final_selector = lib.selectors.RandomKSelector(probability_calculator,
                                                        args.sample_size)
         final_backpropper = lib.backproppers.BaselineBackpropper(device,
                                                                  dataset.model,
                                                                  optimizer)
     else:
-        print("Use sb-strategy in {sampling, deterministic, baseline}")
+        print("Use sb-strategy in {sampling, deterministic, baseline, topk, lowk, randomk}")
         exit()
 
     selector = lib.selectors.PrimedSelector(lib.selectors.BaselineSelector(),
