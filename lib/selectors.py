@@ -89,7 +89,9 @@ class RandomKSelector(object):
                     example.target,
                     example.softmax_output)
         sps = [example.select_probability for example in forward_pass_batch]
-        indices = shuffle(np.array(sps))[:self.sample_size]
+        all_indices = np.array(sps)
+        shuffle(all_indices)
+        indices = all_indices[:self.sample_size]
 
         for i in range(len(forward_pass_batch)):
             if i in indices:
