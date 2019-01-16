@@ -81,8 +81,8 @@ def set_experiment_default_args(parser):
     parser.add_argument('--losses-log-interval', type=int, default=500,
                         help='How often to write losses to file (in epochs)')
 
-    parser.add_argument('--shuffle-labels', action='store_true',
-                        help='shuffle labels')
+    parser.add_argument('--randomize-labels', type=float, default=None,
+                        help='fraction of labels to randomize')
     parser.add_argument('--sample-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 1)')
 
@@ -257,7 +257,7 @@ def main(args):
         dataset = lib.datasets.CIFAR10(net,
                                        args.test_batch_size,
                                        args.augment,
-                                       shuffle_labels=args.shuffle_labels)
+                                       randomize_labels=args.randomize_labels)
     elif args.dataset == "mnist":
         dataset = lib.datasets.MNIST(device, args.test_batch_size)
     elif args.dataset == "svhn":
