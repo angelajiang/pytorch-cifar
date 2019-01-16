@@ -334,6 +334,12 @@ def main(args):
         final_backpropper = lib.backproppers.BaselineBackpropper(device,
                                                                  dataset.model,
                                                                  optimizer)
+    elif args.sb_strategy == "lowk":
+        final_selector = lib.selectors.LowKSelector(probability_calculator,
+                                                    args.sample_size)
+        final_backpropper = lib.backproppers.BaselineBackpropper(device,
+                                                                 dataset.model,
+                                                                 optimizer)
     else:
         print("Use sb-strategy in {sampling, deterministic, baseline}")
         exit()
