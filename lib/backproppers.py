@@ -36,6 +36,9 @@ class BaselineBackpropper(object):
 
     def _get_chosen_targets_tensor(self, batch):
         chosen_targets = [example.target for example in batch if example.select]
+        chosen = len([example.target for example in batch if example.select])
+        whole = len(batch)
+        print("{}/{}".format(chosen, whole))
         return torch.stack(chosen_targets)
 
     def _get_chosen_probabilities_tensor(self, batch):

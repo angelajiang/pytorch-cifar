@@ -89,7 +89,7 @@ class RandomKSelector(object):
                     example.target,
                     example.softmax_output)
         sps = [example.select_probability for example in forward_pass_batch]
-        all_indices = np.array(sps)
+        all_indices = np.array(sps).argsort()
         shuffle(all_indices)
         indices = all_indices[:self.sample_size]
 
