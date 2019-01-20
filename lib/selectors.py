@@ -64,17 +64,18 @@ class SamplingSelector(object):
             example.select = self.select(example)
         return forward_pass_batch
 
-
 class DeterministicSamplingSelector(object):
     def __init__(self, probability_calculator, initial_sum=0):
         self.global_select_sums = {}
+        self.image_ids = set()
         self.get_select_probability = probability_calculator.get_probability
         self.initial_sum = initial_sum
 
     def increase_select_sum(self, example):
         select_probability = example.select_probability
         image_id = example.image_id.item()
-        if image_id not in self.global_select_sums.keys():
+        if image_id not in self.image_ids:
+            self.image_ids.add(image_id)
             self.global_select_sums[image_id] = self.initial_sum
         self.global_select_sums[image_id] += select_probability.item()
 

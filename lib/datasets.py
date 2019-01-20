@@ -104,3 +104,63 @@ class MNISTNet(nn.Module):
         x = F.dropout(x, training=self.training)
         x = self.fc2(x)
         return F.log_softmax(x, dim=1)
+
+from torch.utils.data import ConcatDataset
+from torchvision import datasets
+class IndexedSVHN(datasets.SVHN):
+    def __getitem__(self, index):
+        retval = super(IndexedSVHN, self).__getitem__(index)
+        return retval + (index,)
+
+class SVHN:
+    def __init__(self, model, test_batch_size, augment):
+        self.classes = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
+        self.model = model
+        self.augment = augment
+
+        # Testing set
+        transform_test = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+        testset = IndexedSVHN(root='./svhn_data',
+                              split='test',
+                              download=False,
+                              transform=transform_test)
+        self.testloader = torch.utils.data.DataLoader(testset,
+                                                      batch_size=test_batch_size,
+                                                      shuffle=False,
+                                                      num_workers=0)
+
+        # Training set
+        if self.augment:
+            print("Performing data augmentation on SVHN")
+            transform_train = transforms.Compose([
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            ])
+        else:
+            print("Not performing data augmentation on SVHN")
+            transform_train = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            ])
+        self.trainset1 = IndexedSVHN(root='./svhn_data',
+                                     split='train',
+                                     download=False,
+                                     transform=transform_train)
+        self.trainset2 = IndexedSVHN(root='./svhn_data',
+                                     split='extra',
+                                     download=False,
+                                     transform=transform_train)
+        self.trainset = ConcatDataset([self.trainset1, self.trainset2])
+
+        self.num_training_images = len(self.trainset)
+
+        self.unnormalizer = transforms.Compose([transforms.Normalize(mean = [ 0., 0., 0. ],
+                                                            std = [ 1/0.2023, 1/0.1994, 1/0.2010 ]),
+                                       transforms.Normalize(mean = [ -0.4914, -0.4822, -0.4465 ],
+                                                            std = [ 1., 1., 1. ])
+                                      ])

@@ -260,8 +260,12 @@ def main(args):
                                        shuffle_labels=args.shuffle_labels)
     elif args.dataset == "mnist":
         dataset = lib.datasets.MNIST(device, args.test_batch_size)
+    elif args.dataset == "svhn":
+        dataset = lib.datasets.SVHN(net,
+                                    args.test_batch_size,
+                                    args.augment)
     else:
-        print("Only cifar10 and mnist are implemented")
+        print("Only cifar10, mnist, and svhn are implemented")
         exit()
 
     if args.resume_checkpoint_file:
