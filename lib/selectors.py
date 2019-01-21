@@ -185,7 +185,7 @@ class SelectProbabiltyCalculator(object):
             l2_dist *= l2_dist
         if self.translate:
             l2_dist = self.translate_probability(l2_dist)
-        return torch.clamp(l2_dist, min=self.sampling_min, max=self.sampling_max)
+        return torch.clamp(l2_dist, min=self.sampling_min, max=self.sampling_max).detach()
 
     def hot_encode_scalar(self, target):
         target_vector = np.zeros(self.num_classes)

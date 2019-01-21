@@ -43,6 +43,8 @@ def set_experiment_default_args(parser):
                         help='checkpoint to resume from')
     parser.add_argument('--augment', '-a', dest='augment', action='store_true',
                         help='turn on data augmentation for CIFAR10')
+    parser.add_argument('--kath', '-k', dest='kath', action='store_true',
+                        help='Use Katharopoulous18 mode')
     parser.add_argument('--batch-size', type=int, default=128, metavar='N',
                         help='input batch size for training (default: 1)')
     parser.add_argument('--test-batch-size', type=int, default=100, metavar='N',
@@ -350,25 +352,44 @@ def main(args):
         print("Use sb-strategy in {sampling, deterministic, baseline, topk, lowk, randomk}")
         exit()
 
-    selector = lib.selectors.PrimedSelector(lib.selectors.BaselineSelector(),
-                                            final_selector,
-                                            args.sb_start_epoch,
-                                            epoch=start_epoch)
+    if args.kath:
+        selector = None
+        final_backpropper = lib.backproppers.ReweightedBackpropper(device,
+                                                                   dataset.model,
+                                                                   optimizer)
+        backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.BaselineBackpropper(device,
+                                                                                              dataset.model,
+                                                                                              optimizer),
+                                                         final_backpropper,
+                                                         args.sb_start_epoch,
+                                                         epoch=start_epoch)
+        trainer = lib.trainer.KathTrainer(device,
+                                          dataset.model,
+                                          backpropper,
+                                          args.batch_size,
+                                          args.sample_size,
+                                          max_num_backprops=args.max_num_backprops,
+                                          lr_schedule=args.lr_sched)
+    else:
+        selector = lib.selectors.PrimedSelector(lib.selectors.BaselineSelector(),
+                                                final_selector,
+                                                args.sb_start_epoch,
+                                                epoch=start_epoch)
 
-    backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.BaselineBackpropper(device,
-                                                                                          dataset.model,
-                                                                                          optimizer),
-                                                     final_backpropper,
-                                                     args.sb_start_epoch,
-                                                     epoch=start_epoch)
+        backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.BaselineBackpropper(device,
+                                                                                              dataset.model,
+                                                                                              optimizer),
+                                                         final_backpropper,
+                                                         args.sb_start_epoch,
+                                                         epoch=start_epoch)
+        trainer = lib.trainer.Trainer(device,
+                                      dataset.model,
+                                      selector,
+                                      backpropper,
+                                      args.batch_size,
+                                      max_num_backprops=args.max_num_backprops,
+                                      lr_schedule=args.lr_sched)
 
-    trainer = lib.trainer.Trainer(device,
-                                  dataset.model,
-                                  selector,
-                                  backpropper,
-                                  args.batch_size,
-                                  max_num_backprops=args.max_num_backprops,
-                                  lr_schedule=args.lr_sched)
     logger = lib.loggers.Logger(log_interval = args.log_interval,
                                 epoch=start_epoch,
                                 num_backpropped=start_num_backpropped,
@@ -411,7 +432,8 @@ def main(args):
         image_id_hist_logger.next_epoch()
         loss_hist_logger.next_epoch()
         probability_by_image_logger.next_epoch()
-        selector.next_epoch()
+        if selector:
+            selector.next_epoch()
         backpropper.next_epoch()
         epoch += 1
 

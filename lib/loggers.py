@@ -69,7 +69,7 @@ class ProbabilityByImageLogger(object):
 
     def handle_backward_batch(self, batch):
         ids = [example.image_id.item() for example in batch]
-        probabilities = [example.select_probability.item() for example in batch]
+        probabilities = [example.select_probability for example in batch]
         self.update_data(ids, probabilities)
 
     def write(self):
