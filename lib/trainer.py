@@ -237,12 +237,11 @@ class KathTrainer(object):
         # Calculate probs and add to example
         loss_sum = sum([example.loss.item() for example in pool])
         for example in pool:
-            example.select_probability = 1 #example.loss.item() / loss_sum
+            example.select_probability = example.loss.item() / loss_sum
         probs = [example.loss.item() / loss_sum for example in pool]
 
         # Sample batch_size with replacement
-        #chosen_examples = np.random.choice(pool, self.batch_size, p=probs)
-        chosen_examples = np.random.choice(pool, self.batch_size)
+        chosen_examples = np.random.choice(pool, self.batch_size, p=probs)
 
         # Populate batch with sampled_choices
         for example in chosen_examples:
