@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+from random import shuffle
 
 class PrimedSelector(object):
     def __init__(self, initial, final, initial_epochs, epoch=0):
@@ -39,6 +40,59 @@ class TopKSelector(object):
                     example.softmax_output)
         sps = [example.select_probability for example in forward_pass_batch]
         indices = np.array(sps).argsort()[-self.sample_size:]
+        for i in range(len(forward_pass_batch)):
+            if i in indices:
+                forward_pass_batch[i].select = True
+            else:
+                forward_pass_batch[i].select = False
+        return forward_pass_batch
+
+
+class LowKSelector(object):
+    def __init__(self, probability_calculator, sample_size):
+        self.get_select_probability = probability_calculator.get_probability
+        self.sample_size = sample_size
+
+    def select(self, example):
+        select_probability = example.select_probability
+        draw = np.random.uniform(0, 1)
+        return draw < select_probability.item()
+
+    def mark(self, forward_pass_batch):
+        for example in forward_pass_batch:
+            example.select_probability = self.get_select_probability(
+                    example.target,
+                    example.softmax_output)
+        sps = [example.select_probability for example in forward_pass_batch]
+        indices = np.array(sps).argsort()[:self.sample_size]
+
+        for i in range(len(forward_pass_batch)):
+            if i in indices:
+                forward_pass_batch[i].select = True
+            else:
+                forward_pass_batch[i].select = False
+        return forward_pass_batch
+
+class RandomKSelector(object):
+    def __init__(self, probability_calculator, sample_size):
+        self.get_select_probability = probability_calculator.get_probability
+        self.sample_size = sample_size
+
+    def select(self, example):
+        select_probability = example.select_probability
+        draw = np.random.uniform(0, 1)
+        return draw < select_probability.item()
+
+    def mark(self, forward_pass_batch):
+        for example in forward_pass_batch:
+            example.select_probability = self.get_select_probability(
+                    example.target,
+                    example.softmax_output)
+        sps = [example.select_probability for example in forward_pass_batch]
+        all_indices = np.array(sps).argsort()
+        shuffle(all_indices)
+        indices = all_indices[:self.sample_size]
+
         for i in range(len(forward_pass_batch)):
             if i in indices:
                 forward_pass_batch[i].select = True
@@ -131,7 +185,7 @@ class SelectProbabiltyCalculator(object):
             l2_dist *= l2_dist
         if self.translate:
             l2_dist = self.translate_probability(l2_dist)
-        return torch.clamp(l2_dist, min=self.sampling_min, max=self.sampling_max)
+        return torch.clamp(l2_dist, min=self.sampling_min, max=self.sampling_max).detach()
 
     def hot_encode_scalar(self, target):
         target_vector = np.zeros(self.num_classes)

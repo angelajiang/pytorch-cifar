@@ -7,7 +7,7 @@ import lib.cifar
 import lib.mnist
 
 class CIFAR10:
-    def __init__(self, model, test_batch_size, augment, shuffle_labels):
+    def __init__(self, model, test_batch_size, augment, randomize_labels):
 
         self.classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
         self.model = model
@@ -22,7 +22,7 @@ class CIFAR10:
                                     train=False,
                                     download=False,
                                     transform=transform_test,
-                                    shuffle_labels=shuffle_labels)
+                                    randomize_labels=randomize_labels)
         self.testloader = torch.utils.data.DataLoader(testset,
                                                       batch_size=test_batch_size,
                                                       shuffle=False,
@@ -47,7 +47,7 @@ class CIFAR10:
                                           train=True,
                                           download=False,
                                           transform=transform_train,
-                                          shuffle_labels=shuffle_labels)
+                                          randomize_labels=randomize_labels)
 
         self.num_training_images = len(self.trainset)
 

@@ -39,7 +39,7 @@ class ImageWriter(object):
 
 
 class ProbabilityByImageLogger(object):
-    def __init__(self, pickle_dir, pickle_prefix, max_num_images=100):
+    def __init__(self, pickle_dir, pickle_prefix, max_num_images=None):
         self.pickle_dir = pickle_dir
         self.pickle_prefix = pickle_prefix
         self.init_data()
@@ -61,14 +61,15 @@ class ProbabilityByImageLogger(object):
     def update_data(self, image_ids, probabilities):
         for image_id, probability in zip(image_ids, probabilities):
             if image_id not in self.data.keys():
-                if image_id >= self.max_num_images:
-                    continue
+                if self.max_num_images:
+                    if image_id >= self.max_num_images:
+                        continue
                 self.data[image_id] = []
             self.data[image_id].append(probability)
 
     def handle_backward_batch(self, batch):
         ids = [example.image_id.item() for example in batch]
-        probabilities = [example.select_probability.item() for example in batch]
+        probabilities = [example.select_probability for example in batch]
         self.update_data(ids, probabilities)
 
     def write(self):
