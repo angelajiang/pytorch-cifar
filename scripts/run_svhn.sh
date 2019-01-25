@@ -8,7 +8,7 @@ SAMPLING_MIN=$2
 
 NET="resnet"
 BATCH_SIZE=128
-NUM_TRIALS=1
+NUM_TRIALS=3
 SAMPLING_STRATEGY="sampling"
 LR="data/config/lr_sched_svhn"
 DECAY=0.0005
@@ -44,4 +44,6 @@ do
     --augment \
     --seed=$SEED \
     --lr-sched $LR &> $OUTPUT_DIR/$OUTPUT_FILE
+
+  let "SEED=SEED+1"
 done
