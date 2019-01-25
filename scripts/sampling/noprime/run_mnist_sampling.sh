@@ -42,5 +42,4 @@ do
     --lr $LR &> $OUTPUT_DIR/$OUTPUT_FILE
 
   let "SEED=SEED+1"
-  echo $SEED" should be 1338"
 done
