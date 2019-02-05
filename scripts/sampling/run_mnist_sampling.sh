@@ -8,6 +8,7 @@ BATCH_SIZE=$2
 LR=$3
 MAX_NUM_BACKPROPS=$4
 SAMPLING_MIN=$5
+START_EPOCH=$6
 SEED=1337
 
 DECAY=0.0005
@@ -31,6 +32,7 @@ do
 
   time python main.py \
     --sb-strategy=sampling \
+    --sb-start-epoch=$START_EPOCH \
     --dataset=mnist \
     --batch-size=$BATCH_SIZE \
     --decay=$DECAY \
@@ -42,5 +44,4 @@ do
     --lr $LR &> $OUTPUT_DIR/$OUTPUT_FILE
 
   let "SEED=SEED+1"
-  echo $SEED" should be 1338"
 done

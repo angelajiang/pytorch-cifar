@@ -36,6 +36,8 @@ class BaselineBackpropper(object):
 
     def _get_chosen_targets_tensor(self, batch):
         chosen_targets = [example.target for example in batch if example.select]
+        chosen = len([example.target for example in batch if example.select])
+        whole = len(batch)
         return torch.stack(chosen_targets)
 
     def _get_chosen_probabilities_tensor(self, batch):
@@ -116,5 +118,61 @@ class SamplingBackpropper(object):
         self.optimizer.step()
 
         return batch
+
+
+class ReweightedBackpropper(object):
+
+    def __init__(self, device, net, optimizer):
+        self.optimizer = optimizer
+        self.net = net
+        self.device = device
+
+    def _get_chosen_data_tensor(self, batch):
+        chosen_data = [example.datum for example in batch if example.select]
+        return torch.stack(chosen_data)
+
+    def _get_chosen_targets_tensor(self, batch):
+        chosen_targets = [example.target for example in batch if example.select]
+        return torch.stack(chosen_targets)
+
+    def _get_chosen_probabilities_tensor(self, batch):
+        probabilities = [example.select_probability for example in batch if example.select]
+        return torch.tensor(probabilities, dtype=torch.float)
+
+    def _get_chosen_weights_tensor(self, batch):
+        prob_sum = sum([example.select_probability for example in batch])
+        probabilities = [prob_sum / len(batch) / example.select_probability for example in batch]
+        return torch.tensor(probabilities, dtype=torch.float)
+
+    def backward_pass(self, batch):
+        self.net.train()
+
+        data = self._get_chosen_data_tensor(batch)
+        targets = self._get_chosen_targets_tensor(batch)
+        weights = self._get_chosen_weights_tensor(batch)
+
+        # Run forward pass
+        # Necessary if the network has been updated between last forward pass
+        outputs = self.net(data) 
+        losses = nn.CrossEntropyLoss(reduce=False)(outputs, targets)
+
+        # Scale each loss by image-specific select probs
+        losses = torch.div(losses, weights.to(self.device))
+
+        # Add for logging selected loss
+        for example, loss in zip(batch, losses):
+            example.backpropped_loss = loss.item()
+
+        # Reduce loss
+        loss = losses.mean()
+
+        # Run backwards pass
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        return batch
+
+
 
 
