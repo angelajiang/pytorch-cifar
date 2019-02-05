@@ -2,6 +2,8 @@ expname=$1
 SAMPLING_MIN=$2
 NET=$3
 BATCH_SIZE=$4
+START_EPOCH=$5
+ERROR_RATE=$6
 
 NUM_TRIALS=3
 
@@ -10,7 +12,7 @@ set -x
 ulimit -n 2048
 ulimit -a
 
-EXP_PREFIX=$expname
+EXP_PREFIX=$expname"_shuffle"$ERROR_RATE
 SAMPLING_STRATEGY="sampling"
 LR="data/config/lr_sched_orig"
 DECAY=0.0005
@@ -37,6 +39,7 @@ do
 
   time python main.py \
     --sb-strategy=$SAMPLING_STRATEGY \
+    --sb-start-epoch=$START_EPOCH \
     --net=$NET \
     --batch-size=$BATCH_SIZE \
     --decay=$DECAY \
@@ -46,6 +49,7 @@ do
     --sampling-min=$SAMPLING_MIN \
     --augment \
     --seed=$SEED \
+    --randomize-labels=$ERROR_RATE \
     --lr-sched $LR &> $OUTPUT_DIR/$OUTPUT_FILE
 
   let "SEED=SEED+1"

@@ -154,7 +154,7 @@ def test(args,
     correct = 0
     total = 0
 
-    if epoch % 10 == 0:
+    if epoch % 500 == 0:
         write_target_confidences = True
     else:
         write_target_confidences = False
