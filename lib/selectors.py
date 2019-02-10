@@ -108,13 +108,14 @@ class SamplingSelector(object):
     def select(self, example):
         select_probability = example.select_probability
         draw = np.random.uniform(0, 1)
-        return draw < select_probability.item()
+        return draw < select_probability
 
     def mark(self, forward_pass_batch):
         for example in forward_pass_batch:
-            example.select_probability = self.get_select_probability(
+            sp_tensor = self.get_select_probability(
                     example.target,
                     example.softmax_output)
+            example.select_probability = sp_tensor.item()
             example.select = self.select(example)
         return forward_pass_batch
 
@@ -131,7 +132,7 @@ class DeterministicSamplingSelector(object):
         if image_id not in self.image_ids:
             self.image_ids.add(image_id)
             self.global_select_sums[image_id] = self.initial_sum
-        self.global_select_sums[image_id] += select_probability.item()
+        self.global_select_sums[image_id] += select_probability
 
     def decrease_select_sum(self, example):
         image_id = example.image_id.item()
@@ -144,9 +145,10 @@ class DeterministicSamplingSelector(object):
 
     def mark(self, forward_pass_batch):
         for example in forward_pass_batch:
-            example.select_probability = self.get_select_probability(
-                    example.target,
-                    example.softmax_output)
+            sp_tensor = self.get_select_probability(
+                            example.target,
+                            example.softmax_output)
+            example.select_probability = sp_tensor.item()
             self.increase_select_sum(example)
             example.select = self.select(example)
             if example.select:
@@ -161,7 +163,7 @@ class BaselineSelector(object):
 
     def mark(self, forward_pass_batch):
         for example in forward_pass_batch:
-            example.select_probability = torch.tensor([[1]])
+            example.select_probability = torch.tensor([[1]]).item()
             example.select = self.select(example)
         return forward_pass_batch
 

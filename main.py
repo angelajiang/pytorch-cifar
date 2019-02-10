@@ -14,6 +14,8 @@ import torch.backends.cudnn as cudnn
 import os
 import random
 
+import gc
+
 from models import *
 from utils import progress_bar
 
@@ -22,6 +24,16 @@ import lib.datasets
 import lib.loggers
 import lib.selectors
 import lib.trainer
+
+def count_tensors():
+    num_tensors = 0
+    for obj in gc.get_objects():
+        try:
+            if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+                num_tensors += 1
+        except:
+            pass
+    return num_tensors
 
 def set_random_seeds(seed):
     if seed:
@@ -61,6 +73,8 @@ def set_experiment_default_args(parser):
                         help='seed for randomization; None to not set seed')
     parser.add_argument('--optimizer', default="sgd", metavar='N',
                         help='Optimizer among {sgd, adam}')
+    parser.add_argument('--loss-fn', default="cross", metavar='N',
+                        help='Loss function among {cross, hinge}')
 
     parser.add_argument('--sb-strategy', default="deterministic", metavar='N',
                         help='Selective backprop strategy among {baseline, deterministic, sampling}')
@@ -144,7 +158,8 @@ def test(args,
          device,
          epoch,
          state,
-         logger):
+         logger,
+         loss_fn):
 
     net = dataset.model
     testloader = dataset.testloader
@@ -154,7 +169,7 @@ def test(args,
     correct = 0
     total = 0
 
-    if epoch % 500 == 0:
+    if epoch % 10 == 0:
         write_target_confidences = True
     else:
         write_target_confidences = False
@@ -164,7 +179,7 @@ def test(args,
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = net(inputs)
 
-            loss = nn.CrossEntropyLoss()(outputs, targets)
+            loss = loss_fn()(outputs, targets)
 
             test_loss += loss.item()
             _, predicted = outputs.max(1)
@@ -221,7 +236,7 @@ def main(args):
 
     set_random_seeds(args.seed)
 
-    # Model
+    # Model case
     print('==> Building model..')
     if args.net == "resnet":
         net = ResNet18()
@@ -237,7 +252,7 @@ def main(args):
         net = ResNeXt29_2x64d()
     elif args.net == "mobilenet":
         net = MobileNet()
-    elif args.net == "mobilenet_v2":
+    elif args.net == "mobilenetv2":
         net = MobileNetV2()
     elif args.net == "dpn":
         net = DPN92()
@@ -247,14 +262,12 @@ def main(args):
         net = SENet18()
     net = net.to(device)
 
+    # Device case
     if device == 'cuda':
         net = torch.nn.DataParallel(net)
         cudnn.benchmark = True
 
-    start_epoch = 0  # start from epoch 0 or last checkpoint epoch
-    start_num_backpropped = 0
-    start_num_skipped = 0
-
+    # Dataset case
     if args.dataset == "cifar10":
         dataset = lib.datasets.CIFAR10(net,
                                        args.test_batch_size,
@@ -270,6 +283,11 @@ def main(args):
         print("Only cifar10, mnist, and svhn are implemented")
         exit()
 
+    # Checkpointing case
+    start_epoch = 0  # start from epoch 0 or last checkpoint epoch
+    start_num_backpropped = 0
+    start_num_skipped = 0
+
     if args.resume_checkpoint_file:
         # Load checkpoint.
         print('==> Resuming from checkpoint..')
@@ -282,6 +300,7 @@ def main(args):
         if "dataset" in checkpoint.keys():
             dataset = checkpoint['dataset']
 
+    # Optimizer case
     if args.optimizer == "sgd":
         optimizer = optim.SGD(dataset.model.parameters(),
                               lr=args.lr,
@@ -292,6 +311,15 @@ def main(args):
                               lr=args.lr,
                               weight_decay=args.decay)
 
+    # Loss function case
+    if args.loss_fn == "cross":
+        loss_fn = nn.CrossEntropyLoss
+    elif args.loss_fn == "hinge":
+        loss_fn = nn.MultiMarginLoss
+    else:
+        print("Error: Loss function cannot be {}".format(args.loss_fn))
+        exit()
+    print(loss_fn)
 
     state = State(dataset.num_training_images,
                   args.pickle_dir,
@@ -318,36 +346,42 @@ def main(args):
         final_selector = lib.selectors.SamplingSelector(probability_calculator)
         final_backpropper = lib.backproppers.SamplingBackpropper(device,
                                                                  dataset.model,
-                                                                 optimizer)
+                                                                 optimizer,
+                                                                 loss_fn)
     elif args.sb_strategy == "deterministic":
         final_selector = lib.selectors.DeterministicSamplingSelector(probability_calculator,
                                                                      initial_sum=1)
         final_backpropper = lib.backproppers.SamplingBackpropper(device,
                                                                  dataset.model,
-                                                                 optimizer)
+                                                                 optimizer,
+                                                                 loss_fn)
     elif args.sb_strategy == "baseline":
         final_selector = lib.selectors.BaselineSelector()
         final_backpropper = lib.backproppers.BaselineBackpropper(device,
                                                                  dataset.model,
-                                                                 optimizer)
+                                                                 optimizer,
+                                                                 loss_fn)
     elif args.sb_strategy == "topk":
         final_selector = lib.selectors.TopKSelector(probability_calculator,
                                                     args.sample_size)
         final_backpropper = lib.backproppers.BaselineBackpropper(device,
                                                                  dataset.model,
-                                                                 optimizer)
+                                                                 optimizer,
+                                                                 loss_fn)
     elif args.sb_strategy == "lowk":
         final_selector = lib.selectors.LowKSelector(probability_calculator,
                                                     args.sample_size)
         final_backpropper = lib.backproppers.BaselineBackpropper(device,
                                                                  dataset.model,
-                                                                 optimizer)
+                                                                 optimizer,
+                                                                 loss_fn)
     elif args.sb_strategy == "randomk":
         final_selector = lib.selectors.RandomKSelector(probability_calculator,
                                                        args.sample_size)
         final_backpropper = lib.backproppers.BaselineBackpropper(device,
                                                                  dataset.model,
-                                                                 optimizer)
+                                                                 optimizer,
+                                                                 loss_fn)
     else:
         print("Use sb-strategy in {sampling, deterministic, baseline, topk, lowk, randomk}")
         exit()
@@ -356,10 +390,12 @@ def main(args):
         selector = None
         final_backpropper = lib.backproppers.ReweightedBackpropper(device,
                                                                    dataset.model,
-                                                                   optimizer)
+                                                                   optimizer,
+                                                                   loss_fn)
         backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.BaselineBackpropper(device,
                                                                                               dataset.model,
-                                                                                              optimizer),
+                                                                                              optimizer,
+                                                                                              loss_fn),
                                                          final_backpropper,
                                                          args.sb_start_epoch,
                                                          epoch=start_epoch)
@@ -378,7 +414,8 @@ def main(args):
 
         backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.BaselineBackpropper(device,
                                                                                               dataset.model,
-                                                                                              optimizer),
+                                                                                              optimizer,
+                                                                                              loss_fn),
                                                          final_backpropper,
                                                          args.sb_start_epoch,
                                                          epoch=start_epoch)
@@ -420,7 +457,7 @@ def main(args):
                                                   batch_size=args.batch_size,
                                                   shuffle=True,
                                                   num_workers=0)
-        test(args, dataset, device, epoch, state, logger)
+        test(args, dataset, device, epoch, state, logger, loss_fn)
 
         trainer.train(trainloader)
         logger.next_partition()

@@ -24,10 +24,11 @@ class PrimedBackpropper(object):
 
 class BaselineBackpropper(object):
 
-    def __init__(self, device, net, optimizer):
+    def __init__(self, device, net, optimizer, loss_fn):
         self.optimizer = optimizer
         self.net = net
         self.device = device
+        self.loss_fn = loss_fn
         # TODO: This doesn't work after resuming from checkpoint
 
     def _get_chosen_data_tensor(self, batch):
@@ -54,7 +55,7 @@ class BaselineBackpropper(object):
         # Run forward pass
         # Necessary if the network has been updated between last forward pass
         outputs = self.net(data) 
-        losses = nn.CrossEntropyLoss(reduce=False)(outputs, targets)
+        losses = self.loss_fn(reduce=False)(outputs, targets)
 
         # Add for logging selected loss
         for example, loss in zip(batch, losses):
@@ -73,10 +74,11 @@ class BaselineBackpropper(object):
 
 class SamplingBackpropper(object):
 
-    def __init__(self, device, net, optimizer):
+    def __init__(self, device, net, optimizer, loss_fn):
         self.optimizer = optimizer
         self.net = net
         self.device = device
+        self.loss_fn = loss_fn
 
     def _get_chosen_data_tensor(self, batch):
         chosen_data = [example.datum for example in batch if example.select]
@@ -100,7 +102,7 @@ class SamplingBackpropper(object):
         # Run forward pass
         # Necessary if the network has been updated between last forward pass
         outputs = self.net(data) 
-        losses = nn.CrossEntropyLoss(reduce=False)(outputs, targets)
+        losses = self.loss_fn(reduce=False)(outputs, targets)
 
         # Scale each loss by image-specific select probs
         #losses = torch.div(losses, probabilities.to(self.device))
@@ -122,10 +124,11 @@ class SamplingBackpropper(object):
 
 class ReweightedBackpropper(object):
 
-    def __init__(self, device, net, optimizer):
+    def __init__(self, device, net, optimizer, loss_fn):
         self.optimizer = optimizer
         self.net = net
         self.device = device
+        self.loss_fn = loss_fn
 
     def _get_chosen_data_tensor(self, batch):
         chosen_data = [example.datum for example in batch if example.select]
@@ -154,7 +157,7 @@ class ReweightedBackpropper(object):
         # Run forward pass
         # Necessary if the network has been updated between last forward pass
         outputs = self.net(data) 
-        losses = nn.CrossEntropyLoss(reduce=False)(outputs, targets)
+        losses = self.loss_fn(reduce=False)(outputs, targets)
 
         # Scale each loss by image-specific select probs
         losses = torch.div(losses, weights.to(self.device))
