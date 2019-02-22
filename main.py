@@ -49,8 +49,6 @@ def set_experiment_default_args(parser):
     parser.add_argument('--lr-sched', default=None, help='Path to learning rate schedule')
     parser.add_argument('--momentum', default=0.9, type=float, help='learning rate')
     parser.add_argument('--decay', default=5e-4, type=float, help='decay')
-    parser.add_argument('--checkpoint-interval', type=int, default=None, metavar='N',
-                        help='how often to save snapshot')
     parser.add_argument('--resume-checkpoint-file', default=None, metavar='N',
                         help='checkpoint to resume from')
     parser.add_argument('--augment', '-a', dest='augment', action='store_true',
@@ -94,8 +92,15 @@ def set_experiment_default_args(parser):
     parser.add_argument('--sampling-max', type=float, default=1,
                         help='Maximum sampling rate for sampling strategy')
 
+    # Logging and checkpointing interval
+    parser.add_argument('--imageids-log-interval', type=int, default=10,
+                        help='How often to write image ids to file (in epochs)')
     parser.add_argument('--losses-log-interval', type=int, default=10,
                         help='How often to write losses to file (in epochs)')
+    parser.add_argument('--confidences-log-interval', type=int, default=10,
+                        help='How often to write target confidences to file (in epochs)')
+    parser.add_argument('--checkpoint-interval', type=int, default=None, metavar='N',
+                        help='how often to save snapshot')
 
     parser.add_argument('--randomize-labels', type=float, default=None,
                         help='fraction of labels to randomize')
@@ -169,7 +174,7 @@ def test(args,
     correct = 0
     total = 0
 
-    if epoch % 10 == 0:
+    if epoch % args.confidences_log_interval == 0:
         write_target_confidences = True
     else:
         write_target_confidences = False
@@ -433,7 +438,8 @@ def main(args):
                                 num_skipped=start_num_skipped)
     image_id_hist_logger = lib.loggers.ImageIdHistLogger(args.pickle_dir,
                                                          args.pickle_prefix,
-                                                         dataset.num_training_images)
+                                                         dataset.num_training_images,
+                                                         args.imageids_log_interval)
     loss_hist_logger = lib.loggers.LossesByEpochLogger(args.pickle_dir,
                                                        args.pickle_prefix,
                                                        args.losses_log_interval)
