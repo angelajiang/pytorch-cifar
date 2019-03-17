@@ -73,6 +73,8 @@ def set_experiment_default_args(parser):
                         help='Optimizer among {sgd, adam}')
     parser.add_argument('--loss-fn', default="cross", metavar='N',
                         help='Loss function among {cross, hinge}')
+    parser.add_argument('--loss-transformer-fn', default=None, metavar='N',
+                        help='Transformation function among {loss_squared}')
 
     parser.add_argument('--sb-strategy', default="deterministic", metavar='N',
                         help='Selective backprop strategy among {baseline, deterministic, sampling}')
@@ -324,7 +326,14 @@ def main(args):
     else:
         print("Error: Loss function cannot be {}".format(args.loss_fn))
         exit()
-    print(loss_fn)
+    print("Using loss function {}".format(loss_fn))
+
+    # Loss transformer function case
+    if args.loss_transformer_fn == "loss_squared":
+        loss_transformer_fn = lambda x: x * x
+    else:
+        loss_transformer_fn = lambda x: x
+    print("Transforming loss function with {}".format(args.loss_transformer_fn))
 
     state = State(dataset.num_training_images,
                   args.pickle_dir,
@@ -352,41 +361,47 @@ def main(args):
         final_backpropper = lib.backproppers.SamplingBackpropper(device,
                                                                  dataset.model,
                                                                  optimizer,
-                                                                 loss_fn)
+                                                                 loss_fn,
+                                                                 loss_transformer_fn)
     elif args.sb_strategy == "deterministic":
         final_selector = lib.selectors.DeterministicSamplingSelector(probability_calculator,
                                                                      initial_sum=1)
         final_backpropper = lib.backproppers.SamplingBackpropper(device,
                                                                  dataset.model,
                                                                  optimizer,
-                                                                 loss_fn)
+                                                                 loss_fn,
+                                                                 loss_transformer_fn)
     elif args.sb_strategy == "baseline":
         final_selector = lib.selectors.BaselineSelector()
         final_backpropper = lib.backproppers.BaselineBackpropper(device,
                                                                  dataset.model,
                                                                  optimizer,
-                                                                 loss_fn)
+                                                                 loss_fn,
+                                                                 loss_transformer_fn)
     elif args.sb_strategy == "topk":
         final_selector = lib.selectors.TopKSelector(probability_calculator,
                                                     args.sample_size)
         final_backpropper = lib.backproppers.BaselineBackpropper(device,
                                                                  dataset.model,
                                                                  optimizer,
-                                                                 loss_fn)
+                                                                 loss_fn,
+                                                                 loss_transformer_fn)
     elif args.sb_strategy == "lowk":
         final_selector = lib.selectors.LowKSelector(probability_calculator,
                                                     args.sample_size)
         final_backpropper = lib.backproppers.BaselineBackpropper(device,
                                                                  dataset.model,
                                                                  optimizer,
-                                                                 loss_fn)
+                                                                 loss_fn,
+                                                                 loss_transformer_fn)
     elif args.sb_strategy == "randomk":
         final_selector = lib.selectors.RandomKSelector(probability_calculator,
                                                        args.sample_size)
         final_backpropper = lib.backproppers.BaselineBackpropper(device,
                                                                  dataset.model,
                                                                  optimizer,
-                                                                 loss_fn)
+                                                                 loss_fn,
+                                                                 loss_transformer_fn)
     else:
         print("Use sb-strategy in {sampling, deterministic, baseline, topk, lowk, randomk}")
         exit()
@@ -396,11 +411,13 @@ def main(args):
         final_backpropper = lib.backproppers.ReweightedBackpropper(device,
                                                                    dataset.model,
                                                                    optimizer,
-                                                                   loss_fn)
+                                                                   loss_fn,
+                                                                   loss_transformer_fn)
         backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.BaselineBackpropper(device,
                                                                                               dataset.model,
                                                                                               optimizer,
-                                                                                              loss_fn),
+                                                                                              loss_fn,
+                                                                                              loss_transformer_fn),
                                                          final_backpropper,
                                                          args.sb_start_epoch,
                                                          epoch=start_epoch)
@@ -420,7 +437,8 @@ def main(args):
         backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.BaselineBackpropper(device,
                                                                                               dataset.model,
                                                                                               optimizer,
-                                                                                              loss_fn),
+                                                                                              loss_fn,
+                                                                                              loss_transformer_fn),
                                                          final_backpropper,
                                                          args.sb_start_epoch,
                                                          epoch=start_epoch)
