@@ -38,7 +38,7 @@ do
   echo $OUTPUT_DIR/$OUTPUT_FILE
 
   time python main.py \
-    --selectivity-scalar=$SCALAR
+    --selectivity-scalar=$SCALAR \
     --sb-strategy=$SAMPLING_STRATEGY \
     --net=$NET \
     --batch-size=$BATCH_SIZE \
