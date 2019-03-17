@@ -169,7 +169,8 @@ class BaselineSelector(object):
 
 
 class SelectProbabiltyCalculator(object):
-    def __init__(self, sampling_min, sampling_max, num_classes, device, square=False, translate=False):
+    def __init__(self, sampling_min, sampling_max, num_classes, device,
+                 selectivity_scalar, square=False, translate=False):
         self.sampling_min = sampling_min
         self.sampling_max = sampling_max
         self.num_classes = num_classes
@@ -177,6 +178,7 @@ class SelectProbabiltyCalculator(object):
         self.square = square
         self.translate = translate
         self.old_max = .9
+        self.selectivity_scalar = selectivity_scalar
         if self.square:
             self.old_max *= self.old_max
 
@@ -187,7 +189,10 @@ class SelectProbabiltyCalculator(object):
             l2_dist *= l2_dist
         if self.translate:
             l2_dist = self.translate_probability(l2_dist)
-        return torch.clamp(l2_dist, min=self.sampling_min, max=self.sampling_max).detach()
+        base = torch.clamp(l2_dist, min=self.sampling_min)
+        base.data = base.data * self.selectivity_scalar
+        prob = torch.clamp(base, max=self.sampling_max).detach()
+        return prob
 
     def hot_encode_scalar(self, target):
         target_vector = np.zeros(self.num_classes)
