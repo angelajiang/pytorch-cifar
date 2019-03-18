@@ -96,6 +96,8 @@ def set_experiment_default_args(parser):
                         help='Minimum sampling rate for sampling strategy')
     parser.add_argument('--sampling-max', type=float, default=1,
                         help='Maximum sampling rate for sampling strategy')
+    parser.add_argument('--selectivity-scalar', type=float, default=1,
+                        help='scale the select probability')
 
     # Logging and checkpointing interval
     parser.add_argument('--imageids-log-interval', type=int, default=10,
@@ -368,6 +370,7 @@ def main(args):
                                                                       args.sampling_max,
                                                                       len(dataset.classes),
                                                                       device,
+                                                                      args.selectivity_scalar,
                                                                       square=square,
                                                                       translate=translate)
     if args.sb_strategy == "sampling":
