@@ -37,7 +37,6 @@ do
   echo $OUTPUT_DIR/$OUTPUT_FILE
 
   time python main.py \
-    --loss-transformer-fn="loss_squared" \
     --sb-strategy=$SAMPLING_STRATEGY \
     --net=$NET \
     --batch-size=$BATCH_SIZE \
@@ -48,5 +47,7 @@ do
     --sampling-min=$SAMPLING_MIN \
     --augment \
     --seed=$SEED \
+    --loss-fn="cross_squared" \
     --lr-sched $LR &> $OUTPUT_DIR/$OUTPUT_FILE
+    #--loss-transformer-fn="loss_squared" \
 done

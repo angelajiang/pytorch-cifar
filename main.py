@@ -23,6 +23,7 @@ from utils import progress_bar
 import lib.backproppers
 import lib.datasets
 import lib.loggers
+import lib.losses
 import lib.selectors
 import lib.trainer
 
@@ -75,7 +76,7 @@ def set_experiment_default_args(parser):
     parser.add_argument('--optimizer', default="sgd", metavar='N',
                         help='Optimizer among {sgd, adam}')
     parser.add_argument('--loss-fn', default="cross", metavar='N',
-                        help='Loss function among {cross, hinge}')
+                        help='Loss function among {cross, hinge, cross_squared}')
     parser.add_argument('--loss-transformer-fn', default=None, metavar='N',
                         help='Transformation function among {loss_squared}')
 
@@ -188,7 +189,6 @@ def test(args,
 
     with torch.no_grad():
         for batch_idx, (inputs, targets, image_ids) in enumerate(testloader):
-            print("batch_idx:", batch_idx)
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = net(inputs)
 
@@ -337,6 +337,8 @@ def main(args):
     # Loss function case
     if args.loss_fn == "cross":
         loss_fn = nn.CrossEntropyLoss
+    elif args.loss_fn == "cross_squared":
+        loss_fn = lib.losses.CrossEntropySquaredLoss
     elif args.loss_fn == "hinge":
         loss_fn = nn.MultiMarginLoss
     else:
