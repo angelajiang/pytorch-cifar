@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
+import torchvision.models
 import os
 import random
 
@@ -65,6 +66,8 @@ def set_experiment_default_args(parser):
                         help='which network architecture to train')
     parser.add_argument('--dataset', default="cifar10", metavar='N',
                         help='which network architecture to train')
+    parser.add_argument('--datadir', default="./", metavar='N',
+                        help='path to directory for ImageData loader')
     parser.add_argument('--write-images', default=False, type=bool,
                         help='whether or not write png images by id')
     parser.add_argument('--seed', type=int, default=None,
@@ -183,6 +186,7 @@ def test(args,
 
     with torch.no_grad():
         for batch_idx, (inputs, targets, image_ids) in enumerate(testloader):
+            print("batch_idx:", batch_idx)
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = net(inputs)
 
@@ -246,7 +250,10 @@ def main(args):
     # Model case
     print('==> Building model..')
     if args.net == "resnet":
-        net = ResNet18()
+        if args.dataset == "imagenet":
+            net = torchvision.models.__dict__["resnet18"]()
+        else:
+            net = ResNet18()
     elif args.net == "vgg":
         net = VGG('VGG19')
     elif args.net == "preact_resnet":
@@ -286,6 +293,13 @@ def main(args):
         dataset = lib.datasets.SVHN(net,
                                     args.test_batch_size,
                                     args.augment)
+    elif args.dataset == "imagenet":
+        traindir = os.path.join(args.datadir, "train")
+        valdir = os.path.join(args.datadir, "val")
+        dataset = lib.datasets.ImageNet(net,
+                                        args.test_batch_size,
+                                        traindir,
+                                        valdir)
     else:
         print("Only cifar10, mnist, and svhn are implemented")
         exit()
@@ -405,6 +419,7 @@ def main(args):
     else:
         print("Use sb-strategy in {sampling, deterministic, baseline, topk, lowk, randomk}")
         exit()
+
 
     if args.kath:
         selector = None
