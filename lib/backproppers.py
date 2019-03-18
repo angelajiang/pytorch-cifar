@@ -24,12 +24,11 @@ class PrimedBackpropper(object):
 
 class BaselineBackpropper(object):
 
-    def __init__(self, device, net, optimizer, loss_fn, loss_transformer_fn):
+    def __init__(self, device, net, optimizer, loss_fn):
         self.optimizer = optimizer
         self.net = net
         self.device = device
         self.loss_fn = loss_fn
-        self.loss_transformer_fn = loss_transformer_fn
         # TODO: This doesn't work after resuming from checkpoint
 
     def _get_chosen_data_tensor(self, batch):
@@ -57,7 +56,6 @@ class BaselineBackpropper(object):
         # Necessary if the network has been updated between last forward pass
         outputs = self.net(data) 
         losses = self.loss_fn(reduce=False)(outputs, targets)
-        losses = self.loss_transformer_fn(losses)
 
         # Add for logging selected loss
         for example, loss in zip(batch, losses):
@@ -76,12 +74,11 @@ class BaselineBackpropper(object):
 
 class SamplingBackpropper(object):
 
-    def __init__(self, device, net, optimizer, loss_fn, loss_transformer_fn):
+    def __init__(self, device, net, optimizer, loss_fn):
         self.optimizer = optimizer
         self.net = net
         self.device = device
         self.loss_fn = loss_fn
-        self.loss_transformer_fn = loss_transformer_fn
 
     def _get_chosen_data_tensor(self, batch):
         chosen_data = [example.datum for example in batch if example.select]
@@ -109,8 +106,6 @@ class SamplingBackpropper(object):
 
         # Scale each loss by image-specific select probs
         #losses = torch.div(losses, probabilities.to(self.device))
-        #losses = self.loss_transformer_fn(losses)
-        losses.data = self.loss_transformer_fn(losses.data)
 
         # Add for logging selected loss
         for example, loss in zip(batch, losses):
@@ -129,12 +124,11 @@ class SamplingBackpropper(object):
 
 class ReweightedBackpropper(object):
 
-    def __init__(self, device, net, optimizer, loss_fn, loss_transformer_fn):
+    def __init__(self, device, net, optimizer, loss_fn):
         self.optimizer = optimizer
         self.net = net
         self.device = device
         self.loss_fn = loss_fn
-        self.loss_transformer_fn = loss_transformer_fn
 
     def _get_chosen_data_tensor(self, batch):
         chosen_data = [example.datum for example in batch if example.select]
@@ -167,7 +161,6 @@ class ReweightedBackpropper(object):
 
         # Scale each loss by image-specific select probs
         losses = torch.div(losses, weights.to(self.device))
-        losses = self.loss_transformer_fn(losses)
 
         # Add for logging selected loss
         for example, loss in zip(batch, losses):

@@ -49,5 +49,4 @@ do
     --seed=$SEED \
     --loss-fn="cross_squared" \
     --lr-sched $LR &> $OUTPUT_DIR/$OUTPUT_FILE
-    #--loss-transformer-fn="loss_squared" \
 done
