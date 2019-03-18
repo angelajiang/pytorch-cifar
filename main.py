@@ -76,7 +76,7 @@ def set_experiment_default_args(parser):
     parser.add_argument('--optimizer', default="sgd", metavar='N',
                         help='Optimizer among {sgd, adam}')
     parser.add_argument('--loss-fn', default="cross", metavar='N',
-                        help='Loss function among {cross, hinge, cross_squared}')
+                        help='Loss function among {cross, hinge, cross_squared, cross_custom}')
 
     parser.add_argument('--sb-strategy', default="deterministic", metavar='N',
                         help='Selective backprop strategy among {baseline, deterministic, sampling}')
@@ -337,6 +337,8 @@ def main(args):
         loss_fn = nn.CrossEntropyLoss
     elif args.loss_fn == "cross_squared":
         loss_fn = lib.losses.CrossEntropySquaredLoss
+    elif args.loss_fn == "cross_custom":
+        loss_fn = lib.losses.CrossEntropyLoss
     elif args.loss_fn == "hinge":
         loss_fn = nn.MultiMarginLoss
     else:
