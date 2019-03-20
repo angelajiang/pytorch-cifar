@@ -76,6 +76,8 @@ def set_experiment_default_args(parser):
 
     parser.add_argument('--sb-strategy', default="deterministic", metavar='N',
                         help='Selective backprop strategy among {baseline, deterministic, sampling}')
+    parser.add_argument('--prob-strategy', default="vanilla", metavar='N',
+                        help='Probability calculator strategy among {vanilla, pscale}')
     parser.add_argument('--sb-start-epoch', type=int, default=0,
                         help='epoch to start selective backprop')
     parser.add_argument('--pickle-dir', default="/tmp/",
@@ -157,6 +159,7 @@ class State:
         with open(self.target_confidences_pickle_file, "wb") as handle:
             print(self.target_confidences_pickle_file)
             pickle.dump(self.target_confidences, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
 
 def test(args,
          dataset,
@@ -341,12 +344,29 @@ def main(args):
     square = args.sampling_strategy in ["square", "translate"]
     translate = args.sampling_strategy in ["translate", "recenter"]
 
-    probability_calculator = lib.selectors.SelectProbabiltyCalculator(args.sampling_min,
-                                                                      args.sampling_max,
-                                                                      len(dataset.classes),
-                                                                      device,
-                                                                      square=square,
-                                                                      translate=translate)
+    if args.prob_strategy == "vanilla":
+        print("config vanilla")
+        probability_calculator = lib.selectors.SelectProbabiltyCalculator(args.sampling_min,
+                                                                          args.sampling_max,
+                                                                          len(dataset.classes),
+                                                                          device,
+                                                                          square=square,
+                                                                          translate=translate)
+
+    elif args.prob_strategy == "pscale":
+        pscale_update_steps = dataset.num_training_images / 5
+        print("config pscale {}".format(pscale_update_steps))
+        probability_calculator = lib.selectors.PScaledProbabiltyCalculator(args.sampling_min,
+                                                                           args.sampling_max,
+                                                                           len(dataset.classes),
+                                                                           device,
+                                                                           pscale_update_steps,
+                                                                           square=square,
+                                                                           translate=translate)
+    else:
+        print("Use prob-strategy in {vanilla, pscale}")
+        exit()
+
     if args.sb_strategy == "sampling":
         final_selector = lib.selectors.SamplingSelector(probability_calculator)
         final_backpropper = lib.backproppers.SamplingBackpropper(device,
