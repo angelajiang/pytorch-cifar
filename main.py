@@ -237,6 +237,24 @@ def test(args,
             print("Saving checkpoint at {}".format(checkpoint_file))
             torch.save(net_state, checkpoint_file)
 
+def print_config(args):
+    print("config sb-start-epoch {}".format(args.sb_start_epoch))
+    print("config lr {}".format(args.lr))
+    print("config lr-sched {}".format(args.lr_sched))
+    print("config momentum {}".format(args.momentum))
+    print("config decay {}".format(args.decay))
+    print("config batch-size {}".format(args.batch_size))
+    print("config net {}".format(args.net))
+    print("config dataset {}".format(args.dataset))
+    print("config seed {}".format(args.seed))
+    print("config optimizer {}".format(args.optimizer))
+    print("config loss-fn {}".format(args.loss_fn))
+    print("config sb-strategy {}".format(args.sb_strategy))
+    print("config prob-strategy {}".format(args.prob_strategy))
+    print("config max-num-backprops {}".format(args.max_num_backprops))
+    print("config sampling-strategy {}".format(args.sampling_strategy))
+    print("config sampling-min {}".format(args.sampling_min))
+    print("config sampling-max {}".format(args.sampling_max))
 
 def main(args):
 
@@ -290,6 +308,8 @@ def main(args):
     else:
         print("Only cifar10, mnist, and svhn are implemented")
         exit()
+
+    print_config(args)
 
     # Checkpointing case
     start_epoch = 0  # start from epoch 0 or last checkpoint epoch
@@ -345,7 +365,6 @@ def main(args):
     translate = args.sampling_strategy in ["translate", "recenter"]
 
     if args.prob_strategy == "vanilla":
-        print("config vanilla")
         probability_calculator = lib.selectors.SelectProbabiltyCalculator(args.sampling_min,
                                                                           args.sampling_max,
                                                                           len(dataset.classes),
@@ -355,7 +374,7 @@ def main(args):
 
     elif args.prob_strategy == "pscale":
         pscale_update_steps = dataset.num_training_images / 5
-        print("config pscale {}".format(pscale_update_steps))
+        print("config pscale_update_steps {}".format(pscale_update_steps))
         probability_calculator = lib.selectors.PScaledProbabiltyCalculator(args.sampling_min,
                                                                            args.sampling_max,
                                                                            len(dataset.classes),
