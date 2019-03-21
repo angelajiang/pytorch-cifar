@@ -81,7 +81,10 @@ def set_experiment_default_args(parser):
     parser.add_argument('--sb-strategy', default="deterministic", metavar='N',
                         help='Selective backprop strategy among {baseline, deterministic, sampling}')
     parser.add_argument('--prob-strategy', default="vanilla", metavar='N',
-                        help='Probability calculator strategy among {vanilla, pscale}')
+                        help='Probability calculator strategy among {vanilla, pscale, proportional}')
+    parser.add_argument('--prob-pow', type=float, default=1, metavar='N',
+                        help='Power to scale probability by')
+
     parser.add_argument('--sb-start-epoch', type=int, default=0,
                         help='epoch to start selective backprop')
     parser.add_argument('--pickle-dir', default="/tmp/",
@@ -261,6 +264,7 @@ def print_config(args):
     print("config sampling-strategy {}".format(args.sampling_strategy))
     print("config sampling-min {}".format(args.sampling_min))
     print("config sampling-max {}".format(args.sampling_max))
+    print("config prob_pow {}".format(args.prob_pow))
 
 def main(args):
 
@@ -384,13 +388,20 @@ def main(args):
     square = args.sampling_strategy in ["square", "translate"]
     translate = args.sampling_strategy in ["translate", "recenter"]
 
+    ## Setup Trainer:ProbabilityCalculator ##
+    if args.prob_pow:
+        prob_transform = lambda x: torch.pow(x, args.prob_pow)
+    else:
+        prob_transform = None
+
     if args.prob_strategy == "vanilla":
         probability_calculator = lib.selectors.SelectProbabiltyCalculator(args.sampling_min,
                                                                           args.sampling_max,
                                                                           len(dataset.classes),
                                                                           device,
                                                                           square=square,
-                                                                          translate=translate)
+                                                                          translate=translate,
+                                                                          prob_transform=prob_transform)
 
     elif args.prob_strategy == "pscale":
         pscale_update_steps = dataset.num_training_images / 5
@@ -401,9 +412,18 @@ def main(args):
                                                                            device,
                                                                            pscale_update_steps,
                                                                            square=square,
-                                                                           translate=translate)
+                                                                           translate=translate,
+                                                                           prob_transform=prob_transform)
+    elif args.prob_strategy == "proportional":
+        probability_calculator = lib.selectors.ProportionalProbabiltyCalculator(args.sampling_min,
+                                                                                args.sampling_max,
+                                                                                len(dataset.classes),
+                                                                                device,
+                                                                                square=square,
+                                                                                translate=translate,
+                                                                                prob_transform=prob_transform)
     else:
-        print("Use prob-strategy in {vanilla, pscale}")
+        print("Use prob-strategy in {vanilla, pscale, proportional}")
         exit()
 
     if args.sb_strategy == "sampling":
