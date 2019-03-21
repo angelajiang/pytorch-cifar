@@ -170,14 +170,13 @@ class BaselineSelector(object):
 
 class SelectProbabiltyCalculator(object):
     def __init__(self, sampling_min, sampling_max, num_classes, device,
-                 selectivity_scalar, square=False, prob_transform=None):
+                 square=False, prob_transform=None):
         # prob_transform should be a function f where f(x) <= 1
         self.sampling_min = sampling_min
         self.sampling_max = sampling_max
         self.num_classes = num_classes
         self.device = device
         self.square = square
-        self.selectivity_scalar = selectivity_scalar
         if prob_transform:
             self.prob_transform = prob_transform
         else:
@@ -189,7 +188,6 @@ class SelectProbabiltyCalculator(object):
         if self.square:
             l2_dist *= l2_dist
         base = torch.clamp(l2_dist, min=self.sampling_min)
-        base.data = base.data * self.selectivity_scalar
         prob = torch.clamp(base, max=self.sampling_max).detach()
         return self.prob_transform(prob)
 
