@@ -170,30 +170,24 @@ class BaselineSelector(object):
 
 class SelectProbabiltyCalculator(object):
     def __init__(self, sampling_min, sampling_max, num_classes, device,
-                 selectivity_scalar, square=False, translate=False, prob_transform=None):
+                 selectivity_scalar, square=False, prob_transform=None):
         # prob_transform should be a function f where f(x) <= 1
         self.sampling_min = sampling_min
         self.sampling_max = sampling_max
         self.num_classes = num_classes
         self.device = device
         self.square = square
-        self.translate = translate
-        self.old_max = .9
         self.selectivity_scalar = selectivity_scalar
         if prob_transform:
             self.prob_transform = prob_transform
         else:
             self.prob_transform  = lambda x: x
-        if self.square:
-            self.old_max *= self.old_max
 
     def get_probability(self, target, softmax_output):
         target_tensor = self.hot_encode_scalar(target)
         l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
         if self.square:
             l2_dist *= l2_dist
-        if self.translate:
-            l2_dist = self.translate_probability(l2_dist)
         base = torch.clamp(l2_dist, min=self.sampling_min)
         base.data = base.data * self.selectivity_scalar
         prob = torch.clamp(base, max=self.sampling_max).detach()
@@ -205,12 +199,6 @@ class SelectProbabiltyCalculator(object):
         target_tensor = torch.Tensor(target_vector)
         return target_tensor
 
-    def translate_probability(self, l2_dist):
-        new_max = 1
-        old_range = (self.old_max - self.sampling_min)  
-        new_range = (new_max - self.sampling_min) 
-        l2_dist = (((l2_dist - self.sampling_min) * new_range) / old_range) + self.sampling_min
-        return l2_dist
 
 
 class PScaledProbabiltyCalculator(object):
@@ -221,21 +209,16 @@ class PScaledProbabiltyCalculator(object):
                  device,
                  update_steps,
                  square=False,
-                 translate=False,
                  prob_transform=None):
         self.sampling_min = sampling_min
         self.sampling_max = sampling_max
         self.num_classes = num_classes
         self.device = device
         self.square = square
-        self.translate = translate
-        self.old_max = .9
         if prob_transform:
             self.prob_transform = prob_transform
         else:
             self.prob_transform  = lambda x: x
-        if self.square:
-            self.old_max *= self.old_max
 
         # Scale probabilities so hardest examples are at p = 1
         self.update_steps = update_steps
@@ -270,8 +253,6 @@ class PScaledProbabiltyCalculator(object):
         l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
         if self.square:
             l2_dist *= l2_dist
-        if self.translate:
-            l2_dist = self.translate_probability(l2_dist)
         p = torch.clamp(l2_dist, min=self.sampling_min, max=self.sampling_max).detach()
         self.update_pscale(p)
         pscaled_p = p * self.pscale
@@ -283,17 +264,10 @@ class PScaledProbabiltyCalculator(object):
         target_tensor = torch.Tensor(target_vector)
         return target_tensor
 
-    def translate_probability(self, l2_dist):
-        new_max = 1
-        old_range = (self.old_max - self.sampling_min)  
-        new_range = (new_max - self.sampling_min) 
-        l2_dist = (((l2_dist - self.sampling_min) * new_range) / old_range) + self.sampling_min
-        return l2_dist
-
 
 class ProportionalProbabiltyCalculator(object):
     def __init__(self, sampling_min, sampling_max, num_classes, device,
-                 square=False, translate=False, prob_transform=None):
+                 square=False, prob_transform=None):
         self.sampling_min = sampling_min
         self.sampling_max = sampling_max
         self.num_classes = num_classes
@@ -310,10 +284,6 @@ class ProportionalProbabiltyCalculator(object):
             self.theoretical_max = 2
         else:
             self.theoretical_max = math.sqrt(2)
-
-        if self.translate:
-            print("Translate not supported. Exiting")
-            exit()
 
     def get_probability(self, target, softmax_output):
         target_tensor = self.hot_encode_scalar(target)

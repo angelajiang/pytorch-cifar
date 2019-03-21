@@ -95,7 +95,7 @@ def set_experiment_default_args(parser):
                         help='how many images to backprop total')
 
     parser.add_argument('--sampling-strategy', default="square", metavar='N',
-                        help='Selective backprop sampling strategy among {translate, nosquare, square}')
+                        help='Selective backprop sampling strategy among {nosquare, square}')
     parser.add_argument('--sampling-min', type=float, default=1,
                         help='Minimum sampling rate for sampling strategy')
     parser.add_argument('--sampling-max', type=float, default=1,
@@ -385,8 +385,7 @@ def main(args):
             image_writer.write_partition(partition)
 
     ## Setup Trainer ##
-    square = args.sampling_strategy in ["square", "translate"]
-    translate = args.sampling_strategy in ["translate", "recenter"]
+    square = args.sampling_strategy in ["square"]
 
     ## Setup Trainer:ProbabilityCalculator ##
     if args.prob_pow:
@@ -400,7 +399,6 @@ def main(args):
                                                                           len(dataset.classes),
                                                                           device,
                                                                           square=square,
-                                                                          translate=translate,
                                                                           prob_transform=prob_transform)
 
     elif args.prob_strategy == "pscale":
@@ -412,7 +410,6 @@ def main(args):
                                                                            device,
                                                                            pscale_update_steps,
                                                                            square=square,
-                                                                           translate=translate,
                                                                            prob_transform=prob_transform)
     elif args.prob_strategy == "proportional":
         probability_calculator = lib.selectors.ProportionalProbabiltyCalculator(args.sampling_min,
@@ -420,7 +417,6 @@ def main(args):
                                                                                 len(dataset.classes),
                                                                                 device,
                                                                                 square=square,
-                                                                                translate=translate,
                                                                                 prob_transform=prob_transform)
     else:
         print("Use prob-strategy in {vanilla, pscale, proportional}")
