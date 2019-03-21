@@ -5,6 +5,7 @@ import torchvision
 import torchvision.transforms as transforms
 import lib.cifar
 import lib.mnist
+from PIL import ImageFile
 
 class CIFAR10:
     def __init__(self, model, test_batch_size, augment, randomize_labels):
@@ -172,6 +173,8 @@ class IndexedImageFolder(datasets.ImageFolder):
 
 class ImageNet:
     def __init__(self, model, test_batch_size, traindir, valdir):
+        ImageFile.LOAD_TRUNCATED_IMAGES = True
+
         self.classes = [str(i) for i in range(1000)]
         self.model = model
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],

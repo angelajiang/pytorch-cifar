@@ -80,6 +80,8 @@ def set_experiment_default_args(parser):
 
     parser.add_argument('--sb-strategy', default="deterministic", metavar='N',
                         help='Selective backprop strategy among {baseline, deterministic, sampling}')
+    parser.add_argument('--prob-strategy', default="vanilla", metavar='N',
+                        help='Probability calculator strategy among {vanilla, pscale}')
     parser.add_argument('--sb-start-epoch', type=int, default=0,
                         help='epoch to start selective backprop')
     parser.add_argument('--pickle-dir', default="/tmp/",
@@ -164,6 +166,7 @@ class State:
             print(self.target_confidences_pickle_file)
             pickle.dump(self.target_confidences, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+
 def test(args,
          dataset,
          device,
@@ -240,6 +243,24 @@ def test(args,
             print("Saving checkpoint at {}".format(checkpoint_file))
             torch.save(net_state, checkpoint_file)
 
+def print_config(args):
+    print("config sb-start-epoch {}".format(args.sb_start_epoch))
+    print("config lr {}".format(args.lr))
+    print("config lr-sched {}".format(args.lr_sched))
+    print("config momentum {}".format(args.momentum))
+    print("config decay {}".format(args.decay))
+    print("config batch-size {}".format(args.batch_size))
+    print("config net {}".format(args.net))
+    print("config dataset {}".format(args.dataset))
+    print("config seed {}".format(args.seed))
+    print("config optimizer {}".format(args.optimizer))
+    print("config loss-fn {}".format(args.loss_fn))
+    print("config sb-strategy {}".format(args.sb_strategy))
+    print("config prob-strategy {}".format(args.prob_strategy))
+    print("config max-num-backprops {}".format(args.max_num_backprops))
+    print("config sampling-strategy {}".format(args.sampling_strategy))
+    print("config sampling-min {}".format(args.sampling_min))
+    print("config sampling-max {}".format(args.sampling_max))
 
 def main(args):
 
@@ -304,6 +325,8 @@ def main(args):
         print("Only cifar10, mnist, and svhn are implemented")
         exit()
 
+    print_config(args)
+
     # Checkpointing case
     start_epoch = 0  # start from epoch 0 or last checkpoint epoch
     start_num_backpropped = 0
@@ -361,13 +384,28 @@ def main(args):
     square = args.sampling_strategy in ["square", "translate"]
     translate = args.sampling_strategy in ["translate", "recenter"]
 
-    probability_calculator = lib.selectors.SelectProbabiltyCalculator(args.sampling_min,
-                                                                      args.sampling_max,
-                                                                      len(dataset.classes),
-                                                                      device,
-                                                                      args.selectivity_scalar,
-                                                                      square=square,
-                                                                      translate=translate)
+    if args.prob_strategy == "vanilla":
+        probability_calculator = lib.selectors.SelectProbabiltyCalculator(args.sampling_min,
+                                                                          args.sampling_max,
+                                                                          len(dataset.classes),
+                                                                          device,
+                                                                          square=square,
+                                                                          translate=translate)
+
+    elif args.prob_strategy == "pscale":
+        pscale_update_steps = dataset.num_training_images / 5
+        print("config pscale_update_steps {}".format(pscale_update_steps))
+        probability_calculator = lib.selectors.PScaledProbabiltyCalculator(args.sampling_min,
+                                                                           args.sampling_max,
+                                                                           len(dataset.classes),
+                                                                           device,
+                                                                           pscale_update_steps,
+                                                                           square=square,
+                                                                           translate=translate)
+    else:
+        print("Use prob-strategy in {vanilla, pscale}")
+        exit()
+
     if args.sb_strategy == "sampling":
         final_selector = lib.selectors.SamplingSelector(probability_calculator)
         final_backpropper = lib.backproppers.SamplingBackpropper(device,
