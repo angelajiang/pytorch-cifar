@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
+import torchvision.models
 import os
 import random
 
@@ -22,6 +23,7 @@ from utils import progress_bar
 import lib.backproppers
 import lib.datasets
 import lib.loggers
+import lib.losses
 import lib.selectors
 import lib.trainer
 
@@ -65,6 +67,8 @@ def set_experiment_default_args(parser):
                         help='which network architecture to train')
     parser.add_argument('--dataset', default="cifar10", metavar='N',
                         help='which network architecture to train')
+    parser.add_argument('--datadir', default="./", metavar='N',
+                        help='path to directory for ImageData loader')
     parser.add_argument('--write-images', default=False, type=bool,
                         help='whether or not write png images by id')
     parser.add_argument('--seed', type=int, default=None,
@@ -72,10 +76,12 @@ def set_experiment_default_args(parser):
     parser.add_argument('--optimizer', default="sgd", metavar='N',
                         help='Optimizer among {sgd, adam}')
     parser.add_argument('--loss-fn', default="cross", metavar='N',
-                        help='Loss function among {cross, hinge}')
+                        help='Loss function among {cross, hinge, cross_squared, cross_custom}')
 
     parser.add_argument('--sb-strategy', default="deterministic", metavar='N',
                         help='Selective backprop strategy among {baseline, deterministic, sampling}')
+    parser.add_argument('--prob-strategy', default="vanilla", metavar='N',
+                        help='Probability calculator strategy among {vanilla, pscale}')
     parser.add_argument('--sb-start-epoch', type=int, default=0,
                         help='epoch to start selective backprop')
     parser.add_argument('--pickle-dir', default="/tmp/",
@@ -91,6 +97,8 @@ def set_experiment_default_args(parser):
                         help='Minimum sampling rate for sampling strategy')
     parser.add_argument('--sampling-max', type=float, default=1,
                         help='Maximum sampling rate for sampling strategy')
+    parser.add_argument('--selectivity-scalar', type=float, default=1,
+                        help='scale the select probability')
 
     # Logging and checkpointing interval
     parser.add_argument('--imageids-log-interval', type=int, default=10,
@@ -157,6 +165,7 @@ class State:
         with open(self.target_confidences_pickle_file, "wb") as handle:
             print(self.target_confidences_pickle_file)
             pickle.dump(self.target_confidences, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
 
 def test(args,
          dataset,
@@ -234,6 +243,24 @@ def test(args,
             print("Saving checkpoint at {}".format(checkpoint_file))
             torch.save(net_state, checkpoint_file)
 
+def print_config(args):
+    print("config sb-start-epoch {}".format(args.sb_start_epoch))
+    print("config lr {}".format(args.lr))
+    print("config lr-sched {}".format(args.lr_sched))
+    print("config momentum {}".format(args.momentum))
+    print("config decay {}".format(args.decay))
+    print("config batch-size {}".format(args.batch_size))
+    print("config net {}".format(args.net))
+    print("config dataset {}".format(args.dataset))
+    print("config seed {}".format(args.seed))
+    print("config optimizer {}".format(args.optimizer))
+    print("config loss-fn {}".format(args.loss_fn))
+    print("config sb-strategy {}".format(args.sb_strategy))
+    print("config prob-strategy {}".format(args.prob_strategy))
+    print("config max-num-backprops {}".format(args.max_num_backprops))
+    print("config sampling-strategy {}".format(args.sampling_strategy))
+    print("config sampling-min {}".format(args.sampling_min))
+    print("config sampling-max {}".format(args.sampling_max))
 
 def main(args):
 
@@ -244,7 +271,10 @@ def main(args):
     # Model case
     print('==> Building model..')
     if args.net == "resnet":
-        net = ResNet18()
+        if args.dataset == "imagenet":
+            net = torchvision.models.__dict__["resnet18"]()
+        else:
+            net = ResNet18()
     elif args.net == "vgg":
         net = VGG('VGG19')
     elif args.net == "preact_resnet":
@@ -284,9 +314,18 @@ def main(args):
         dataset = lib.datasets.SVHN(net,
                                     args.test_batch_size,
                                     args.augment)
+    elif args.dataset == "imagenet":
+        traindir = os.path.join(args.datadir, "train")
+        valdir = os.path.join(args.datadir, "val")
+        dataset = lib.datasets.ImageNet(net,
+                                        args.test_batch_size,
+                                        traindir,
+                                        valdir)
     else:
         print("Only cifar10, mnist, and svhn are implemented")
         exit()
+
+    print_config(args)
 
     # Checkpointing case
     start_epoch = 0  # start from epoch 0 or last checkpoint epoch
@@ -319,6 +358,10 @@ def main(args):
     # Loss function case
     if args.loss_fn == "cross":
         loss_fn = nn.CrossEntropyLoss
+    elif args.loss_fn == "cross_squared":
+        loss_fn = lib.losses.CrossEntropySquaredLoss
+    elif args.loss_fn == "cross_custom":
+        loss_fn = lib.losses.CrossEntropyLoss
     elif args.loss_fn == "hinge":
         loss_fn = nn.MultiMarginLoss
     else:
@@ -341,12 +384,28 @@ def main(args):
     square = args.sampling_strategy in ["square", "translate"]
     translate = args.sampling_strategy in ["translate", "recenter"]
 
-    probability_calculator = lib.selectors.SelectProbabiltyCalculator(args.sampling_min,
-                                                                      args.sampling_max,
-                                                                      len(dataset.classes),
-                                                                      device,
-                                                                      square=square,
-                                                                      translate=translate)
+    if args.prob_strategy == "vanilla":
+        probability_calculator = lib.selectors.SelectProbabiltyCalculator(args.sampling_min,
+                                                                          args.sampling_max,
+                                                                          len(dataset.classes),
+                                                                          device,
+                                                                          square=square,
+                                                                          translate=translate)
+
+    elif args.prob_strategy == "pscale":
+        pscale_update_steps = dataset.num_training_images / 5
+        print("config pscale_update_steps {}".format(pscale_update_steps))
+        probability_calculator = lib.selectors.PScaledProbabiltyCalculator(args.sampling_min,
+                                                                           args.sampling_max,
+                                                                           len(dataset.classes),
+                                                                           device,
+                                                                           pscale_update_steps,
+                                                                           square=square,
+                                                                           translate=translate)
+    else:
+        print("Use prob-strategy in {vanilla, pscale}")
+        exit()
+
     if args.sb_strategy == "sampling":
         final_selector = lib.selectors.SamplingSelector(probability_calculator)
         final_backpropper = lib.backproppers.SamplingBackpropper(device,
@@ -390,6 +449,7 @@ def main(args):
     else:
         print("Use sb-strategy in {sampling, deterministic, baseline, topk, lowk, randomk}")
         exit()
+
 
     if args.kath:
         selector = None

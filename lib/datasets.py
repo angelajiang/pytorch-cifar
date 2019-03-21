@@ -5,6 +5,7 @@ import torchvision
 import torchvision.transforms as transforms
 import lib.cifar
 import lib.mnist
+from PIL import ImageFile
 
 class CIFAR10:
     def __init__(self, model, test_batch_size, augment, randomize_labels):
@@ -164,3 +165,47 @@ class SVHN:
                                        transforms.Normalize(mean = [ -0.4914, -0.4822, -0.4465 ],
                                                             std = [ 1., 1., 1. ])
                                       ])
+
+class IndexedImageFolder(datasets.ImageFolder):
+    def __getitem__(self, index):
+        retval = super(IndexedImageFolder, self).__getitem__(index)
+        return retval + (index,)
+
+class ImageNet:
+    def __init__(self, model, test_batch_size, traindir, valdir):
+        ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+        self.classes = [str(i) for i in range(1000)]
+        self.model = model
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+
+
+        # Testing set
+        testset = IndexedImageFolder(valdir, transforms.Compose([
+                                            transforms.Resize(256),
+                                            transforms.CenterCrop(224),
+                                            transforms.ToTensor(),
+                                            normalize]))
+        self.testloader = torch.utils.data.DataLoader(testset,
+                                                      batch_size=test_batch_size,
+                                                      shuffle=False,
+                                                      num_workers=0)
+
+        # Training set
+        print("Performing data augmentation on ImageNet")
+        transform_train = transforms.Compose([
+            transforms.RandomResizedCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize,
+        ])
+        self.trainset = IndexedImageFolder(traindir,
+                                           transform_train)
+        self.num_training_images = len(self.trainset)
+        print(self.num_training_images)
+        self.unnormalizer = transforms.Compose([transforms.Normalize(mean = [ 0., 0., 0. ],
+                                                        std = [ 1/0.229, 1/0.224, 1/0.225 ]),
+                                                transforms.Normalize(mean = [ -0.485, -0.456, -0.406 ],
+                                                        std = [ 1., 1., 1. ])
+                                               ])
