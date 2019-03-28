@@ -366,6 +366,8 @@ def main(args):
         loss_fn = lib.losses.CrossEntropySquaredLoss
     elif args.loss_fn == "cross_custom":
         loss_fn = lib.losses.CrossEntropyLoss
+    elif args.loss_fn == "cross_regulated":
+        loss_fn = lib.losses.CrossEntropyRegulatedLoss
     elif args.loss_fn == "hinge":
         loss_fn = nn.MultiMarginLoss
     else:

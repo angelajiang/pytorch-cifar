@@ -274,6 +274,11 @@ class ProportionalProbabiltyCalculator(object):
         self.device = device
         self.square = square
 
+        if self.square:
+            self.theoretical_max = 2
+        else:
+            self.theoretical_max = math.sqrt(2)
+
         # prob_transform should be a function f where f(x) <= 1
         if prob_transform:
             self.prob_transform = prob_transform
@@ -286,7 +291,7 @@ class ProportionalProbabiltyCalculator(object):
         if self.square:
             l2_dist *= l2_dist
         prob = l2_dist / float(self.theoretical_max)
-        transformed_prob = self.prob(transform(prob))
+        transformed_prob = self.prob_transform(prob)
         clamped_prob = torch.clamp(transformed_prob,
                                    min=self.sampling_min)
         return clamped_prob
