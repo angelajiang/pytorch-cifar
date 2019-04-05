@@ -2,7 +2,8 @@ expname=$1
 SAMPLING_MIN=$2
 NET=$3
 BATCH_SIZE=$4
-HOME_DIR=$5
+LOSS_FN=$5
+HOME_DIR=$6
 
 NUM_TRIALS=1
 
@@ -18,7 +19,7 @@ DECAY=0.0005
 MAX_NUM_BACKPROPS=17500000
 SEED=1337
 
-EXP_NAME=$EXP_PREFIX
+EXP_NAME=$EXP_PREFIX"_"$LOSS_FN
 
 mkdir $HOME_DIR
 OUTPUT_DIR=$HOME_DIR/$EXP_NAME
@@ -47,6 +48,6 @@ do
     --sampling-min=$SAMPLING_MIN \
     --augment \
     --seed=$SEED \
-    --loss-fn="cross_regulated" \
+    --loss-fn=$LOSS_FN \
     --lr-sched $LR &> $OUTPUT_DIR/$OUTPUT_FILE
 done

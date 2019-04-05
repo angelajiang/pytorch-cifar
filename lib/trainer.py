@@ -38,12 +38,14 @@ class Trainer(object):
                  selector,
                  backpropper,
                  batch_size,
+                 loss_fn,
                  max_num_backprops=float('inf'),
                  lr_schedule=None):
         self.device = device
         self.net = net
         self.selector = selector
         self.backpropper = backpropper
+        self.loss_fn = loss_fn
         self.batch_size = batch_size
         self.backprop_queue = []
         self.forward_pass_handlers = []
@@ -123,7 +125,7 @@ class Trainer(object):
         with torch.no_grad():
             outputs = self.net(data)
 
-        losses = nn.CrossEntropyLoss(reduce=False)(outputs, targets)
+        losses = self.loss_fn(reduce=False)(outputs, targets)
         softmax_outputs = nn.Softmax()(outputs)
 
         examples = zip(losses, softmax_outputs, targets, data, image_ids)
@@ -157,11 +159,13 @@ class KathTrainer(object):
                  backpropper,
                  batch_size,
                  pool_size,
+                 loss_fn,
                  max_num_backprops=float('inf'),
                  lr_schedule=None):
         self.device = device
         self.net = net
         self.backpropper = backpropper
+        self.loss_fn = loss_fn
         self.batch_size = batch_size
         self.backprop_queue = []
         self.forward_pass_handlers = []
@@ -256,7 +260,7 @@ class KathTrainer(object):
         with torch.no_grad():
             outputs = self.net(data)
 
-        losses = nn.CrossEntropyLoss(reduce=False)(outputs, targets)
+        losses = self.loss_fn(reduce=False)(outputs, targets)
         softmax_outputs = nn.Softmax()(outputs)
 
         examples = zip(losses, softmax_outputs, targets, data, image_ids)

@@ -368,6 +368,8 @@ def main(args):
         loss_fn = lib.losses.CrossEntropyLoss
     elif args.loss_fn == "cross_regulated":
         loss_fn = lib.losses.CrossEntropyRegulatedLoss
+    elif args.loss_fn == "cross_regulated_boosted":
+        loss_fn = lib.losses.CrossEntropyRegulatedBoostedLoss
     elif args.loss_fn == "hinge":
         loss_fn = nn.MultiMarginLoss
     else:
@@ -487,6 +489,7 @@ def main(args):
                                           backpropper,
                                           args.batch_size,
                                           args.sample_size,
+                                          loss_fn,
                                           max_num_backprops=args.max_num_backprops,
                                           lr_schedule=args.lr_sched)
     else:
@@ -507,6 +510,7 @@ def main(args):
                                       selector,
                                       backpropper,
                                       args.batch_size,
+                                      loss_fn,
                                       max_num_backprops=args.max_num_backprops,
                                       lr_schedule=args.lr_sched)
 
