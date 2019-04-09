@@ -1,8 +1,8 @@
-exp_prefix=$1
+expname=$1
 SAMPLING_MIN=$2
 NET=$3
 BATCH_SIZE=$4
-PROB_POW=$5
+LOSS_FN=$5
 HOME_DIR=$6
 
 NUM_TRIALS=1
@@ -12,14 +12,14 @@ set -x
 ulimit -n 2048
 ulimit -a
 
-EXP_PREFIX=$exp_prefix
+EXP_PREFIX=$expname
 SAMPLING_STRATEGY="sampling"
-LR="data/config/lr_sched_gradual"
+LR="data/config/lr_sched_orig"
 DECAY=0.0005
 MAX_NUM_BACKPROPS=17500000
 SEED=1337
 
-EXP_NAME=$EXP_PREFIX
+EXP_NAME=$EXP_PREFIX"_"$LOSS_FN
 
 mkdir $HOME_DIR
 OUTPUT_DIR=$HOME_DIR/$EXP_NAME
@@ -38,10 +38,7 @@ do
   echo $OUTPUT_DIR/$OUTPUT_FILE
 
   time python main.py \
-    --sb-start-epoch=1 \
     --sb-strategy=$SAMPLING_STRATEGY \
-    --prob-strategy="proportional" \
-    --prob-pow=$PROB_POW \
     --net=$NET \
     --batch-size=$BATCH_SIZE \
     --decay=$DECAY \
@@ -51,5 +48,6 @@ do
     --sampling-min=$SAMPLING_MIN \
     --augment \
     --seed=$SEED \
+    --loss-fn=$LOSS_FN \
     --lr-sched $LR &> $OUTPUT_DIR/$OUTPUT_FILE
 done

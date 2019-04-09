@@ -187,9 +187,9 @@ class SelectProbabiltyCalculator(object):
         l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
         if self.square:
             l2_dist *= l2_dist
-        base = torch.clamp(l2_dist, min=self.sampling_min)
+        base = torch.clamp(self.prob_transform(l2_dist), min=self.sampling_min)
         prob = torch.clamp(base, max=self.sampling_max).detach()
-        return self.prob_transform(prob)
+        return prob
 
     def hot_encode_scalar(self, target):
         target_vector = np.zeros(self.num_classes)
@@ -251,10 +251,12 @@ class PScaledProbabiltyCalculator(object):
         l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
         if self.square:
             l2_dist *= l2_dist
-        p = torch.clamp(l2_dist, min=self.sampling_min, max=self.sampling_max).detach()
+        p = torch.clamp(self.prob_transform(l2_dist),
+                        min=self.sampling_min,
+                        max=self.sampling_max).detach()
         self.update_pscale(p)
         pscaled_p = p * self.pscale
-        return self.prob_transform(pscaled_p)
+        return pscaled_p
 
     def hot_encode_scalar(self, target):
         target_vector = np.zeros(self.num_classes)
@@ -272,25 +274,27 @@ class ProportionalProbabiltyCalculator(object):
         self.device = device
         self.square = square
 
+        if self.square:
+            self.theoretical_max = 2
+        else:
+            self.theoretical_max = math.sqrt(2)
+
         # prob_transform should be a function f where f(x) <= 1
         if prob_transform:
             self.prob_transform = prob_transform
         else:
             self.prob_transform  = lambda x: x
 
-        if self.square:
-            self.theoretical_max = 2
-        else:
-            self.theoretical_max = math.sqrt(2)
-
     def get_probability(self, target, softmax_output):
         target_tensor = self.hot_encode_scalar(target)
         l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
         if self.square:
             l2_dist *= l2_dist
-        base = torch.clamp(l2_dist, min=self.sampling_min)
-        prob = base / float(self.theoretical_max)
-        return self.prob_transform(prob)
+        prob = l2_dist / float(self.theoretical_max)
+        transformed_prob = self.prob_transform(prob)
+        clamped_prob = torch.clamp(transformed_prob,
+                                   min=self.sampling_min)
+        return clamped_prob
 
     def hot_encode_scalar(self, target):
         target_vector = np.zeros(self.num_classes)
