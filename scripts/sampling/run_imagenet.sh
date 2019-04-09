@@ -2,7 +2,7 @@ expname=$1
 SAMPLING_MIN=$2
 NET="resnet"
 BATCH_SIZE=128
-START_EPOCH=0
+START_EPOCH=1
 
 NUM_TRIALS=1
 
@@ -13,12 +13,12 @@ ulimit -a
 
 EXP_PREFIX=$expname
 SAMPLING_STRATEGY="sampling"
-LR="data/config/lr_sched_imagenet"
+LR="data/config/lr_sched_imagenet_gradual"
 DECAY=0.0001
-#MAX_NUM_BACKPROPS=25802100
-MAX_NUM_BACKPROPS=860070
+MAX_NUM_BACKPROPS=25802100
+#MAX_NUM_BACKPROPS=860070
 SEED=1337
-DATA_DIR="/proj/BigLearning/ahjiang/datasets/imagenet_data/"
+DATA_DIR="/proj/BigLearning/ahjiang/datasets/imagenet-data"
 
 EXP_NAME=$EXP_PREFIX
 
