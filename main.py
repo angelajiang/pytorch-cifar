@@ -314,6 +314,14 @@ def main(args):
     # Loss function case
     if args.loss_fn == "cross":
         loss_fn = nn.CrossEntropyLoss
+    elif args.loss_fn == "cross_squared":
+        loss_fn = lib.losses.CrossEntropySquaredLoss
+    elif args.loss_fn == "cross_custom":
+        loss_fn = lib.losses.CrossEntropyLoss
+    elif args.loss_fn == "cross_regulated":
+        loss_fn = lib.losses.CrossEntropyRegulatedLoss
+    elif args.loss_fn == "cross_regulated_boosted":
+        loss_fn = lib.losses.CrossEntropyRegulatedBoostedLoss
     elif args.loss_fn == "hinge":
         loss_fn = nn.MultiMarginLoss
     else:
@@ -404,6 +412,7 @@ def main(args):
                                           backpropper,
                                           args.batch_size,
                                           args.sample_size,
+                                          loss_fn,
                                           max_num_backprops=args.max_num_backprops,
                                           lr_schedule=args.lr_sched)
     else:
@@ -424,6 +433,7 @@ def main(args):
                                       selector,
                                       backpropper,
                                       args.batch_size,
+                                      loss_fn,
                                       max_num_backprops=args.max_num_backprops,
                                       lr_schedule=args.lr_sched)
 
@@ -444,6 +454,13 @@ def main(args):
     trainer.on_backward_pass(image_id_hist_logger.handle_backward_batch)
     trainer.on_backward_pass(loss_hist_logger.handle_backward_batch)
     trainer.on_backward_pass(probability_by_image_logger.handle_backward_batch)
+
+    if not args.no_logging:
+	trainer.on_forward_pass(logger.handle_forward_batch)
+	trainer.on_backward_pass(logger.handle_backward_batch)
+	trainer.on_backward_pass(image_id_hist_logger.handle_backward_batch)
+	trainer.on_backward_pass(loss_hist_logger.handle_backward_batch)
+	trainer.on_backward_pass(probability_by_image_logger.handle_backward_batch)
     stopped = False
 
 
