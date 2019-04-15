@@ -51,14 +51,19 @@ class Trainer(object):
         self.forward_pass_handlers = []
         self.backward_pass_handlers = []
         self.global_num_backpropped = 0
+        self.global_num_forwards = 0
         self.max_num_backprops = max_num_backprops
         self.on_backward_pass(self.update_num_backpropped)
+        self.on_forward_pass(self.update_num_forwards)
         if lr_schedule:
             self.load_lr_schedule(lr_schedule)
-            self.on_backward_pass(self.update_learning_rate)
+            self.on_forward_pass(self.update_learning_rate)
 
     def update_num_backpropped(self, batch):
         self.global_num_backpropped += sum([1 for e in batch if e.select])
+
+    def update_num_forwards(self, batch):
+        self.global_num_forwards += len(batch)
 
     def on_forward_pass(self, handler):
         self.forward_pass_handlers.append(handler)
@@ -89,9 +94,9 @@ class Trainer(object):
             param_group['lr'] = lr
 
     def update_learning_rate(self, batch):
-        for start_num_backprop in reversed(sorted(self.lr_schedule)):
-            lr = self.lr_schedule[start_num_backprop]
-            if self.global_num_backpropped >= start_num_backprop:
+        for n in reversed(sorted(self.lr_schedule)):
+            lr = self.lr_schedule[n]
+            if self.global_num_forwards >= n:
                 if self.backpropper.optimizer.param_groups[0]['lr'] is not lr:
                     self.set_learning_rate(lr)
                 break
@@ -173,6 +178,7 @@ class KathTrainer(object):
         self.pool = []
         self.pool_size = pool_size
         self.global_num_backpropped = 0
+        self.global_num_forwards = 0
         self.max_num_backprops = max_num_backprops
         self.on_backward_pass(self.update_num_backpropped)
         if lr_schedule:
@@ -182,6 +188,9 @@ class KathTrainer(object):
 
     def update_num_backpropped(self, batch):
         self.global_num_backpropped += sum([1 for e in batch if e.select])
+
+    def update_num_forwards(self, batch):
+        self.global_num_forwards += len(batch)
 
     def on_forward_pass(self, handler):
         self.forward_pass_handlers.append(handler)

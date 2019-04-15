@@ -33,7 +33,7 @@ def CrossEntropyRegulatedLoss(reduce=True):
                     max_others = max_other.unsqueeze(-1)
                 else:
                     max_others = torch.cat((max_others, max_other.unsqueeze(-1)))
-            cross_entropy_loss = -torch.mean(class_outputs + 0.01 * max_others)
+            cross_entropy_loss = -torch.mean(class_outputs + 0.05 * max_others)
             return cross_entropy_loss
     else:
         def fn(outputs, labels):
@@ -49,7 +49,7 @@ def CrossEntropyRegulatedLoss(reduce=True):
                     max_others = max_other.unsqueeze(-1)
                 else:
                     max_others = torch.cat((max_others, max_other.unsqueeze(-1)))
-            cross_entropy_loss = -(class_outputs + 0.01 * max_others)
+            cross_entropy_loss = -(class_outputs + 0.05 * max_others)
             return cross_entropy_loss
     return fn
 
