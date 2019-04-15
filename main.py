@@ -370,6 +370,8 @@ def main(args):
         loss_fn = lib.losses.CrossEntropyRegulatedLoss
     elif args.loss_fn == "cross_regulated_boosted":
         loss_fn = lib.losses.CrossEntropyRegulatedBoostedLoss
+    elif args.loss_fn == "cross_reweighted":
+        loss_fn = lib.losses.CrossEntropyReweightedLoss
     elif args.loss_fn == "hinge":
         loss_fn = nn.MultiMarginLoss
     else:

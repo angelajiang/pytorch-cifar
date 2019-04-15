@@ -1,5 +1,62 @@
+import numpy as np
 import torch.nn.functional as F
 import torch
+
+
+def CrossEntropyReweightedLoss(reduce=True):
+    if reduce:
+        def fn(outputs, labels):
+            batch_size = outputs.size()[0]            # batch_size
+            outputs = F.softmax(outputs, dim=1)       # compute the softmax values
+            num_classes = outputs.size()[1]            # num classes
+            class_outputs = outputs[range(batch_size), labels] # pick the values corresponding to the labels
+            losses = None
+            for softmax_output, class_prob, label in zip(outputs, class_outputs, labels):
+
+                # Hot encode
+                target_vector = np.zeros(num_classes)
+                target_vector[label.item()] = 1
+                target_tensor = torch.Tensor(target_vector)
+
+                # Calculate weight based on L2 fully proportional
+                l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
+                weight = l2_dist / 2.
+                print(weight, -torch.log(class_prob))
+
+                # Calculate loss
+                loss = -torch.log(class_prob) * weight
+                if losses is None:
+                    losses = loss.unsqueeze(-1)
+                else:
+                    losses = torch.cat((losses, loss.unsqueeze(-1)))
+            reduced_loss = torch.mean(losses)
+            return reduced_loss
+    else:
+        def fn(outputs, labels):
+            batch_size = outputs.size()[0]            # batch_size
+            outputs = F.softmax(outputs, dim=1)       # compute the softmax values
+            num_classes = outputs.size()[1]            # num classes
+            class_outputs = outputs[range(batch_size), labels] # pick the values corresponding to the labels
+            losses = None
+            for softmax_output, class_prob, label in zip(outputs, class_outputs, labels):
+                # Hot encode
+                target_vector = np.zeros(num_classes)
+                target_vector[label.item()] = 1
+                target_tensor = torch.Tensor(target_vector)
+
+                # Calculate weight based on L2 fully proportional
+                l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
+                weight = l2_dist / 2.
+                print(weight, -torch.log(class_prob))
+
+                # Calculate loss
+                loss = -torch.log(class_prob) * weight
+                if losses is None:
+                    losses = loss.unsqueeze(-1)
+                else:
+                    losses = torch.cat((losses, loss.unsqueeze(-1)))
+            return losses
+    return fn
 
 def CrossEntropySquaredLoss(reduce=True):
     if reduce:
