@@ -81,10 +81,11 @@ class ProbabilityByImageLogger(object):
 
 class ImageIdHistLogger(object):
 
-    def __init__(self, pickle_dir, pickle_prefix, num_images):
+    def __init__(self, pickle_dir, pickle_prefix, num_images, log_interval):
         self.current_epoch = 0
         self.pickle_dir = pickle_dir
         self.pickle_prefix = pickle_prefix
+        self.log_interval = log_interval
         self.init_data(num_images)
 
     def next_epoch(self):
@@ -118,7 +119,7 @@ class ImageIdHistLogger(object):
 
         epoch_file = "{}.epoch_{}.pickle".format(self.data_pickle_file,
                                                  self.current_epoch)
-        if self.current_epoch % 100 == 0:
+        if self.current_epoch % self.log_interval == 0:
             with open(epoch_file, "wb") as handle:
                 print(epoch_file)
                 pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
