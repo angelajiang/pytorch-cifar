@@ -38,6 +38,7 @@ do
   echo $OUTPUT_DIR/$OUTPUT_FILE
 
   time python main.py \
+    --sb-start-epoch=1 \
     --sb-strategy=$SAMPLING_STRATEGY \
     --net=$NET \
     --batch-size=$BATCH_SIZE \
