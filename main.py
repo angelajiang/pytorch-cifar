@@ -446,7 +446,7 @@ def main(args):
         final_backpropper = lib.backproppers.BaselineBackpropper(device,
                                                                  dataset.model,
                                                                  optimizer,
-                                                                 lib.losses.CrossEntropyLoss)
+                                                                 loss_fn)
     elif args.sb_strategy == "topk":
         final_selector = lib.selectors.TopKSelector(probability_calculator,
                                                     args.sample_size)
@@ -482,7 +482,7 @@ def main(args):
         backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.BaselineBackpropper(device,
                                                                                               dataset.model,
                                                                                               optimizer,
-                                                                                              lib.losses.CrossEntropyLoss),
+                                                                                              loss_fn),
                                                          final_backpropper,
                                                          args.sb_start_epoch,
                                                          epoch=start_epoch)
@@ -503,7 +503,7 @@ def main(args):
         backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.BaselineBackpropper(device,
                                                                                               dataset.model,
                                                                                               optimizer,
-                                                                                              lib.losses.CrossEntropyLoss),
+                                                                                              loss_fn),
                                                          final_backpropper,
                                                          args.sb_start_epoch,
                                                          epoch=start_epoch)
@@ -512,11 +512,9 @@ def main(args):
                                       selector,
                                       backpropper,
                                       args.batch_size,
-                                      lib.losses.CrossEntropyLoss,
+                                      loss_fn,
                                       max_num_backprops=args.max_num_backprops,
-                                      lr_schedule=args.lr_sched,
-                                      sb_start_epoch = args.sb_start_epoch,
-                                      second_loss_fn = loss_fn)
+                                      lr_schedule=args.lr_sched)
 
     logger = lib.loggers.Logger(log_interval = args.log_interval,
                                 epoch=start_epoch,

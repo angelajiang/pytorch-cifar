@@ -40,9 +40,7 @@ class Trainer(object):
                  batch_size,
                  loss_fn,
                  max_num_backprops=float('inf'),
-                 lr_schedule=None,
-                 sb_start_epoch=None,
-                 second_loss_fn=None):
+                 lr_schedule=None):
         self.device = device
         self.net = net
         self.selector = selector
@@ -60,10 +58,6 @@ class Trainer(object):
         if lr_schedule:
             self.load_lr_schedule(lr_schedule)
             self.on_forward_pass(self.update_learning_rate)
-
-        self.sb_start_epoch = sb_start_epoch
-        self.second_loss_fn = second_loss_fn
-        self.on_forward_pass(self.update_loss_fn)
 
     def update_num_backpropped(self, batch):
         self.global_num_backpropped += sum([1 for e in batch if e.select])
@@ -98,10 +92,6 @@ class Trainer(object):
                                                                    self.global_num_backpropped))
         for param_group in self.backpropper.optimizer.param_groups:
             param_group['lr'] = lr
-
-    def update_loss_fn(self, batch):
-        if self.global_num_forwards >= 50000 * self.sb_start_epoch:
-            self.loss_fn = self.second_loss_fn
 
     def update_learning_rate(self, batch):
         for n in reversed(sorted(self.lr_schedule)):
