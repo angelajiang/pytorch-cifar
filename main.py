@@ -11,7 +11,6 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
-import torchvision.models
 import os
 import random
 
@@ -23,7 +22,6 @@ from utils import progress_bar
 import lib.backproppers
 import lib.datasets
 import lib.loggers
-import lib.losses
 import lib.selectors
 import lib.trainer
 
@@ -51,6 +49,8 @@ def set_experiment_default_args(parser):
     parser.add_argument('--lr-sched', default=None, help='Path to learning rate schedule')
     parser.add_argument('--momentum', default=0.9, type=float, help='learning rate')
     parser.add_argument('--decay', default=5e-4, type=float, help='decay')
+    parser.add_argument('--checkpoint-interval', type=int, default=None, metavar='N',
+                        help='how often to save snapshot')
     parser.add_argument('--resume-checkpoint-file', default=None, metavar='N',
                         help='checkpoint to resume from')
     parser.add_argument('--augment', '-a', dest='augment', action='store_true',
@@ -67,8 +67,6 @@ def set_experiment_default_args(parser):
                         help='which network architecture to train')
     parser.add_argument('--dataset', default="cifar10", metavar='N',
                         help='which network architecture to train')
-    parser.add_argument('--datadir', default="./", metavar='N',
-                        help='path to directory for ImageData loader')
     parser.add_argument('--write-images', default=False, type=bool,
                         help='whether or not write png images by id')
     parser.add_argument('--seed', type=int, default=None,
@@ -76,15 +74,10 @@ def set_experiment_default_args(parser):
     parser.add_argument('--optimizer', default="sgd", metavar='N',
                         help='Optimizer among {sgd, adam}')
     parser.add_argument('--loss-fn', default="cross", metavar='N',
-                        help='Loss function among {cross, hinge, cross_squared, cross_custom}')
+                        help='Loss function among {cross, hinge}')
 
     parser.add_argument('--sb-strategy', default="deterministic", metavar='N',
                         help='Selective backprop strategy among {baseline, deterministic, sampling}')
-    parser.add_argument('--prob-strategy', default="vanilla", metavar='N',
-                        help='Probability calculator strategy among {vanilla, pscale, proportional}')
-    parser.add_argument('--prob-pow', type=float, default=1, metavar='N',
-                        help='Power to scale probability by')
-
     parser.add_argument('--sb-start-epoch', type=int, default=0,
                         help='epoch to start selective backprop')
     parser.add_argument('--pickle-dir', default="/tmp/",
@@ -95,23 +88,14 @@ def set_experiment_default_args(parser):
                         help='how many images to backprop total')
 
     parser.add_argument('--sampling-strategy', default="square", metavar='N',
-                        help='Selective backprop sampling strategy among {nosquare, square}')
+                        help='Selective backprop sampling strategy among {translate, nosquare, square}')
     parser.add_argument('--sampling-min', type=float, default=1,
                         help='Minimum sampling rate for sampling strategy')
     parser.add_argument('--sampling-max', type=float, default=1,
                         help='Maximum sampling rate for sampling strategy')
-    parser.add_argument('--selectivity-scalar', type=float, default=1,
-                        help='scale the select probability')
 
-    # Logging and checkpointing interval
-    parser.add_argument('--imageids-log-interval', type=int, default=10,
-                        help='How often to write image ids to file (in epochs)')
-    parser.add_argument('--losses-log-interval', type=int, default=10,
+    parser.add_argument('--losses-log-interval', type=int, default=500,
                         help='How often to write losses to file (in epochs)')
-    parser.add_argument('--confidences-log-interval', type=int, default=10,
-                        help='How often to write target confidences to file (in epochs)')
-    parser.add_argument('--checkpoint-interval', type=int, default=None, metavar='N',
-                        help='how often to save snapshot')
 
     parser.add_argument('--randomize-labels', type=float, default=None,
                         help='fraction of labels to randomize')
@@ -169,7 +153,6 @@ class State:
             print(self.target_confidences_pickle_file)
             pickle.dump(self.target_confidences, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-
 def test(args,
          dataset,
          device,
@@ -186,7 +169,7 @@ def test(args,
     correct = 0
     total = 0
 
-    if epoch % args.confidences_log_interval == 0:
+    if epoch % 10 == 0:
         write_target_confidences = True
     else:
         write_target_confidences = False
@@ -246,25 +229,6 @@ def test(args,
             print("Saving checkpoint at {}".format(checkpoint_file))
             torch.save(net_state, checkpoint_file)
 
-def print_config(args):
-    print("config sb-start-epoch {}".format(args.sb_start_epoch))
-    print("config lr {}".format(args.lr))
-    print("config lr-sched {}".format(args.lr_sched))
-    print("config momentum {}".format(args.momentum))
-    print("config decay {}".format(args.decay))
-    print("config batch-size {}".format(args.batch_size))
-    print("config net {}".format(args.net))
-    print("config dataset {}".format(args.dataset))
-    print("config seed {}".format(args.seed))
-    print("config optimizer {}".format(args.optimizer))
-    print("config loss-fn {}".format(args.loss_fn))
-    print("config sb-strategy {}".format(args.sb_strategy))
-    print("config prob-strategy {}".format(args.prob_strategy))
-    print("config max-num-backprops {}".format(args.max_num_backprops))
-    print("config sampling-strategy {}".format(args.sampling_strategy))
-    print("config sampling-min {}".format(args.sampling_min))
-    print("config sampling-max {}".format(args.sampling_max))
-    print("config prob_pow {}".format(args.prob_pow))
 
 def main(args):
 
@@ -275,10 +239,7 @@ def main(args):
     # Model case
     print('==> Building model..')
     if args.net == "resnet":
-        if args.dataset == "imagenet":
-            net = torchvision.models.__dict__["resnet18"]()
-        else:
-            net = ResNet18()
+        net = ResNet18()
     elif args.net == "vgg":
         net = VGG('VGG19')
     elif args.net == "preact_resnet":
@@ -318,18 +279,9 @@ def main(args):
         dataset = lib.datasets.SVHN(net,
                                     args.test_batch_size,
                                     args.augment)
-    elif args.dataset == "imagenet":
-        traindir = os.path.join(args.datadir, "train")
-        valdir = os.path.join(args.datadir, "val")
-        dataset = lib.datasets.ImageNet(net,
-                                        args.test_batch_size,
-                                        traindir,
-                                        valdir)
     else:
         print("Only cifar10, mnist, and svhn are implemented")
         exit()
-
-    print_config(args)
 
     # Checkpointing case
     start_epoch = 0  # start from epoch 0 or last checkpoint epoch
@@ -362,14 +314,6 @@ def main(args):
     # Loss function case
     if args.loss_fn == "cross":
         loss_fn = nn.CrossEntropyLoss
-    elif args.loss_fn == "cross_squared":
-        loss_fn = lib.losses.CrossEntropySquaredLoss
-    elif args.loss_fn == "cross_custom":
-        loss_fn = lib.losses.CrossEntropyLoss
-    elif args.loss_fn == "cross_regulated":
-        loss_fn = lib.losses.CrossEntropyRegulatedLoss
-    elif args.loss_fn == "cross_regulated_boosted":
-        loss_fn = lib.losses.CrossEntropyRegulatedBoostedLoss
     elif args.loss_fn == "hinge":
         loss_fn = nn.MultiMarginLoss
     else:
@@ -389,43 +333,15 @@ def main(args):
             image_writer.write_partition(partition)
 
     ## Setup Trainer ##
-    square = args.sampling_strategy in ["square"]
+    square = args.sampling_strategy in ["square", "translate"]
+    translate = args.sampling_strategy in ["translate", "recenter"]
 
-    ## Setup Trainer:ProbabilityCalculator ##
-    if args.prob_pow:
-        prob_transform = lambda x: torch.pow(x, args.prob_pow)
-    else:
-        prob_transform = None
-
-    if args.prob_strategy == "vanilla":
-        probability_calculator = lib.selectors.SelectProbabiltyCalculator(args.sampling_min,
-                                                                          args.sampling_max,
-                                                                          len(dataset.classes),
-                                                                          device,
-                                                                          square=square,
-                                                                          prob_transform=prob_transform)
-
-    elif args.prob_strategy == "pscale":
-        pscale_update_steps = dataset.num_training_images / 5
-        print("config pscale_update_steps {}".format(pscale_update_steps))
-        probability_calculator = lib.selectors.PScaledProbabiltyCalculator(args.sampling_min,
-                                                                           args.sampling_max,
-                                                                           len(dataset.classes),
-                                                                           device,
-                                                                           pscale_update_steps,
-                                                                           square=square,
-                                                                           prob_transform=prob_transform)
-    elif args.prob_strategy == "proportional":
-        probability_calculator = lib.selectors.ProportionalProbabiltyCalculator(args.sampling_min,
-                                                                                args.sampling_max,
-                                                                                len(dataset.classes),
-                                                                                device,
-                                                                                square=square,
-                                                                                prob_transform=prob_transform)
-    else:
-        print("Use prob-strategy in {vanilla, pscale, proportional}")
-        exit()
-
+    probability_calculator = lib.selectors.SelectProbabiltyCalculator(args.sampling_min,
+                                                                      args.sampling_max,
+                                                                      len(dataset.classes),
+                                                                      device,
+                                                                      square=square,
+                                                                      translate=translate)
     if args.sb_strategy == "sampling":
         final_selector = lib.selectors.SamplingSelector(probability_calculator)
         final_backpropper = lib.backproppers.SamplingBackpropper(device,
@@ -470,7 +386,6 @@ def main(args):
         print("Use sb-strategy in {sampling, deterministic, baseline, topk, lowk, randomk}")
         exit()
 
-
     if args.kath:
         selector = None
         final_backpropper = lib.backproppers.ReweightedBackpropper(device,
@@ -489,7 +404,6 @@ def main(args):
                                           backpropper,
                                           args.batch_size,
                                           args.sample_size,
-                                          loss_fn,
                                           max_num_backprops=args.max_num_backprops,
                                           lr_schedule=args.lr_sched)
     else:
@@ -510,7 +424,6 @@ def main(args):
                                       selector,
                                       backpropper,
                                       args.batch_size,
-                                      loss_fn,
                                       max_num_backprops=args.max_num_backprops,
                                       lr_schedule=args.lr_sched)
 
@@ -520,25 +433,20 @@ def main(args):
                                 num_skipped=start_num_skipped)
     image_id_hist_logger = lib.loggers.ImageIdHistLogger(args.pickle_dir,
                                                          args.pickle_prefix,
-                                                         dataset.num_training_images,
-                                                         args.imageids_log_interval)
+                                                         dataset.num_training_images)
     loss_hist_logger = lib.loggers.LossesByEpochLogger(args.pickle_dir,
                                                        args.pickle_prefix,
                                                        args.losses_log_interval)
     probability_by_image_logger = lib.loggers.ProbabilityByImageLogger(args.pickle_dir,
                                                                        args.pickle_prefix)
-    trainer.on_forward_pass(logger.handle_forward_batch)
-    trainer.on_backward_pass(logger.handle_backward_batch)
-    trainer.on_backward_pass(image_id_hist_logger.handle_backward_batch)
-    trainer.on_backward_pass(loss_hist_logger.handle_backward_batch)
-    trainer.on_backward_pass(probability_by_image_logger.handle_backward_batch)
 
     if not args.no_logging:
-	trainer.on_forward_pass(logger.handle_forward_batch)
-	trainer.on_backward_pass(logger.handle_backward_batch)
-	trainer.on_backward_pass(image_id_hist_logger.handle_backward_batch)
-	trainer.on_backward_pass(loss_hist_logger.handle_backward_batch)
-	trainer.on_backward_pass(probability_by_image_logger.handle_backward_batch)
+        trainer.on_forward_pass(logger.handle_forward_batch)
+        trainer.on_backward_pass(logger.handle_backward_batch)
+        trainer.on_backward_pass(image_id_hist_logger.handle_backward_batch)
+        trainer.on_backward_pass(loss_hist_logger.handle_backward_batch)
+        trainer.on_backward_pass(probability_by_image_logger.handle_backward_batch)
+
     stopped = False
 
 
