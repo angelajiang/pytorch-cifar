@@ -92,12 +92,17 @@ class SamplingBackpropper(object):
         probabilities = [example.select_probability for example in batch if example.select]
         return torch.tensor(probabilities, dtype=torch.float)
 
+    def _get_all_probabilities_tensor(self, batch):
+        probabilities = [example.select_probability for example in batch]
+        return torch.tensor(probabilities, dtype=torch.float)
+
     def backward_pass(self, batch):
         self.net.train()
 
         data = self._get_chosen_data_tensor(batch)
         targets = self._get_chosen_targets_tensor(batch)
-        probabilities = self._get_chosen_probabilities_tensor(batch)
+        #probabilities = self._get_chosen_probabilities_tensor(batch)
+        probabilities = self._get_all_probabilities_tensor(batch)
 
         # Run forward pass
         # Necessary if the network has been updated between last forward pass
@@ -106,6 +111,8 @@ class SamplingBackpropper(object):
 
         # Scale each loss by image-specific select probs
         #losses = torch.div(losses, probabilities.to(self.device))
+        average_prob = torch.mean(probabilities)
+        losses = torch.div(losses, average_prob.to(self.device))
 
         # Add for logging selected loss
         for example, loss in zip(batch, losses):

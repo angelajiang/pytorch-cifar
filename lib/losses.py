@@ -6,6 +6,7 @@ import torch
 def CrossEntropyReweightedLoss(reduce=True):
     if reduce:
         def fn(outputs, labels):
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
             batch_size = outputs.size()[0]            # batch_size
             outputs = F.softmax(outputs, dim=1)       # compute the softmax values
             num_classes = outputs.size()[1]            # num classes
@@ -14,14 +15,11 @@ def CrossEntropyReweightedLoss(reduce=True):
             for softmax_output, class_prob, label in zip(outputs, class_outputs, labels):
 
                 # Hot encode
-                target_vector = np.zeros(num_classes)
-                target_vector[label.item()] = 1
-                target_tensor = torch.Tensor(target_vector)
+                target_tensor = torch.eye(num_classes)[label]
 
                 # Calculate weight based on L2 fully proportional
-                l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
-                weight = l2_dist / 2.
-                print(weight, -torch.log(class_prob))
+                l2_dist = torch.dist(target_tensor.to(device), softmax_output)
+                weight = l2_dist ** 2. / 2.
 
                 # Calculate loss
                 loss = -torch.log(class_prob) * weight
@@ -33,6 +31,7 @@ def CrossEntropyReweightedLoss(reduce=True):
             return reduced_loss
     else:
         def fn(outputs, labels):
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
             batch_size = outputs.size()[0]            # batch_size
             outputs = F.softmax(outputs, dim=1)       # compute the softmax values
             num_classes = outputs.size()[1]            # num classes
@@ -40,14 +39,11 @@ def CrossEntropyReweightedLoss(reduce=True):
             losses = None
             for softmax_output, class_prob, label in zip(outputs, class_outputs, labels):
                 # Hot encode
-                target_vector = np.zeros(num_classes)
-                target_vector[label.item()] = 1
-                target_tensor = torch.Tensor(target_vector)
+                target_tensor = torch.eye(num_classes)[label]
 
                 # Calculate weight based on L2 fully proportional
-                l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
-                weight = l2_dist / 2.
-                print(weight, -torch.log(class_prob))
+                l2_dist = torch.dist(target_tensor.to(device), softmax_output)
+                weight = l2_dist ** 2. / 2.
 
                 # Calculate loss
                 loss = -torch.log(class_prob) * weight
@@ -65,14 +61,14 @@ def CrossEntropySquaredLoss(reduce=True):
             outputs = F.log_softmax(outputs, dim=1)   # compute the log of softmax values
             outputs = outputs[range(batch_size), labels] # pick the values corresponding to the labels
             cross_entropy_loss = -torch.mean(outputs)
-            return cross_entropy_loss ** 2 / 10.
+            return cross_entropy_loss ** 2 * .9
     else:
         def fn(outputs, labels):
             batch_size = outputs.size()[0]            # batch_size
             outputs = F.log_softmax(outputs, dim=1)   # compute the log of softmax values
             outputs = outputs[range(batch_size), labels] # pick the values corresponding to the labels
             cross_entropy_loss = - outputs
-            return cross_entropy_loss ** 2 / 10.
+            return cross_entropy_loss ** 2 * .9
     return fn
 
 def CrossEntropyRegulatedLoss(reduce=True):

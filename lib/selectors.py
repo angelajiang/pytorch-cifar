@@ -117,7 +117,7 @@ class SamplingSelector(object):
                     example.target,
                     example.softmax_output)
             example.select_probability = sp_tensor.item()
-            example.select = self.select(example)
+            example.select = True #self.select(example)
         return forward_pass_batch
 
 class DeterministicSamplingSelector(object):

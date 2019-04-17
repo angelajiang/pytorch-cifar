@@ -329,6 +329,7 @@ def main(args):
         print("Only cifar10, mnist, and svhn are implemented")
         exit()
 
+    args.sampling_min = 0.1
     print_config(args)
 
     # Checkpointing case
