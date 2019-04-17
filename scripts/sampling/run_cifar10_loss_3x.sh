@@ -14,7 +14,7 @@ ulimit -a
 
 EXP_PREFIX=$expname
 SAMPLING_STRATEGY="sampling"
-LR="data/config/lr_sched_orig"
+LR="data/config/lr_sched_orig_3x"
 DECAY=0.0005
 MAX_NUM_BACKPROPS=52500000
 SEED=1337
