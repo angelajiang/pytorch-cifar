@@ -92,6 +92,15 @@ class SamplingBackpropper(object):
         probabilities = [example.select_probability for example in batch if example.select]
         return torch.tensor(probabilities, dtype=torch.float)
 
+    @property
+    def total_norm(self):
+        total_norm = 0
+	for p in self.net.parameters():
+            param_norm = p.grad.data.norm(2)
+            total_norm += param_norm.item() ** 2
+        total_norm = total_norm ** (1. / 2)
+        return total_norm
+
     def backward_pass(self, batch):
         self.net.train()
 
@@ -118,6 +127,8 @@ class SamplingBackpropper(object):
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+
+        print("total_norm {}".format(self.total_norm))
 
         return batch
 
