@@ -117,7 +117,7 @@ class SamplingBackpropper(object):
         #losses = torch.div(losses, probabilities.to(self.device))
         losses = torch.mul(losses, probabilities.to(self.device))
         print("losses 2 {}".format(losses))
-        losses = torch.div(losses, 2 * average_prob.to(self.device))
+        #losses = torch.div(losses, average_prob.to(self.device))
         print("losses 3 {}".format(losses))
 
 
