@@ -104,15 +104,22 @@ class SamplingBackpropper(object):
         #probabilities = self._get_chosen_probabilities_tensor(batch)
         probabilities = self._get_all_probabilities_tensor(batch)
 
+        average_prob = torch.mean(probabilities)
+        print("Average prob {}".format(average_prob))
+
         # Run forward pass
         # Necessary if the network has been updated between last forward pass
         outputs = self.net(data) 
         losses = self.loss_fn(reduce=False)(outputs, targets)
+        print("losses 1 {}".format(losses))
 
         # Scale each loss by image-specific select probs
         #losses = torch.div(losses, probabilities.to(self.device))
-        average_prob = torch.mean(probabilities)
+        losses = torch.mul(losses, probabilities.to(self.device))
+        print("losses 2 {}".format(losses))
         losses = torch.div(losses, average_prob.to(self.device))
+        print("losses 3 {}".format(losses))
+
 
         # Add for logging selected loss
         for example, loss in zip(batch, losses):
