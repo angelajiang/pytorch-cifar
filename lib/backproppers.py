@@ -69,6 +69,8 @@ class BaselineBackpropper(object):
         loss.backward()
         self.optimizer.step()
 
+        print("total_norm {}".format(self.total_norm))
+
         return batch
 
 
@@ -184,6 +186,8 @@ class ReweightedBackpropper(object):
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+
+        print("total_norm {}".format(self.total_norm))
 
         return batch
 
