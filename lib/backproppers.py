@@ -133,7 +133,7 @@ class SamplingBackpropper(object):
 
         # Scale each loss by image-specific select probs
         #losses = torch.div(losses, probabilities.to(self.device))
-        probabilities_exp = torch.exp(probabilities, 3)
+        probabilities_exp = torch.pow(probabilities, 3)
         losses = torch.mul(losses, probabilities_exp.to(self.device))
         #losses = torch.div(losses, average_prob.to(self.device))
 
