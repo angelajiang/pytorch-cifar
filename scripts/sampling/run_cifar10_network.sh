@@ -4,7 +4,7 @@ NET=$3
 BATCH_SIZE=$4
 START_EPOCH=$5
 
-NUM_TRIALS=3
+NUM_TRIALS=1
 
 set -x
 
@@ -37,8 +37,8 @@ do
   echo $OUTPUT_DIR/$OUTPUT_FILE
 
   time python main.py \
-    --sb-strategy=$SAMPLING_STRATEGY \
     --sb-start-epoch=$START_EPOCH \
+    --sb-strategy=$SAMPLING_STRATEGY \
     --net=$NET \
     --batch-size=$BATCH_SIZE \
     --decay=$DECAY \
