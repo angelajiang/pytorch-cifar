@@ -104,6 +104,7 @@ def set_experiment_default_args(parser):
                         help='scale the select probability')
 
     # Logging and checkpointing interval
+    parser.add_argument('--no-logging', type=bool, default=False, help='prevent logging')
     parser.add_argument('--imageids-log-interval', type=int, default=10,
                         help='How often to write image ids to file (in epochs)')
     parser.add_argument('--losses-log-interval', type=int, default=10,
@@ -527,11 +528,12 @@ def main(args):
                                                        args.losses_log_interval)
     probability_by_image_logger = lib.loggers.ProbabilityByImageLogger(args.pickle_dir,
                                                                        args.pickle_prefix)
-    trainer.on_forward_pass(logger.handle_forward_batch)
-    trainer.on_backward_pass(logger.handle_backward_batch)
-    trainer.on_backward_pass(image_id_hist_logger.handle_backward_batch)
-    trainer.on_backward_pass(loss_hist_logger.handle_backward_batch)
-    trainer.on_backward_pass(probability_by_image_logger.handle_backward_batch)
+    if not args.no_logging:
+        trainer.on_forward_pass(logger.handle_forward_batch)
+        trainer.on_backward_pass(logger.handle_backward_batch)
+        trainer.on_backward_pass(image_id_hist_logger.handle_backward_batch)
+        trainer.on_backward_pass(loss_hist_logger.handle_backward_batch)
+        trainer.on_backward_pass(probability_by_image_logger.handle_backward_batch)
     stopped = False
 
 
