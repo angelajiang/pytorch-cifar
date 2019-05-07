@@ -9,6 +9,51 @@ import torchvision.transforms as transforms
 from PIL import Image
 
 
+class BiasByEpochLogger(object):
+
+    def __init__(self, pickle_dir, pickle_prefix, log_frequency):
+        self.current_epoch = 0
+        self.pickle_dir = pickle_dir
+        self.log_frequency = log_frequency
+        self.pickle_prefix = pickle_prefix
+        self.init_data()
+
+    def next_epoch(self):
+        self.write()
+        self.current_epoch += 1
+        self.data = self.base_dict(self.current_epoch)
+
+    def base_dict(self, epoch):
+        return {"epoch": epoch, "selectivities": [], "cosine_sims": [], "losses": []}
+
+    def init_data(self):
+        # {"epoch": 0,
+        #       "selectivities": [0.1, 0.3...],
+        #       "cosine_sims": [1, 2, 3], 
+        #       "losses": [2.7, 2.3, 2.3], 
+        # }
+        self.data = self.base_dict(0)
+        data_pickle_dir = os.path.join(self.pickle_dir, "biases")
+        self.data_pickle_file = os.path.join(data_pickle_dir,
+                                                 "{}_biases".format(self.pickle_prefix))
+        if not os.path.exists(data_pickle_dir):
+            os.mkdir(data_pickle_dir)
+
+    def handle_backward_batch(self, batch):
+        average_loss = sum([example.loss.item() for example in batch]) / float(len(batch))
+        selectivity = sum([1 for example in batch if example.select]) / float(len(batch))
+        self.data["losses"].append(average_loss)
+        self.data["selectivities"].append(selectivity)
+
+    def write(self):
+        epoch_file = "{}.epoch_{}.pickle".format(self.data_pickle_file,
+                                                 self.current_epoch)
+        if self.current_epoch % self.log_frequency == 0:
+            with open(epoch_file, "wb") as handle:
+                print(epoch_file)
+                pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
 class ImageWriter(object):
     def __init__(self, data_dir, dataset, unnormalizer):
         self.data_dir = data_dir

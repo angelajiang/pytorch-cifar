@@ -117,6 +117,8 @@ def set_experiment_default_args(parser):
                         help='How often to write target confidences to file (in epochs)')
     parser.add_argument('--checkpoint-interval', type=int, default=None, metavar='N',
                         help='how often to save snapshot')
+    parser.add_argument('--log-bias', dest='log_bias', action='store_true',
+                        help='Log bias by epoch')
 
     parser.add_argument('--randomize-labels', type=float, default=None,
                         help='fraction of labels to randomize')
@@ -551,6 +553,13 @@ def main(args):
         trainer.on_backward_pass(image_id_hist_logger.handle_backward_batch)
         trainer.on_backward_pass(loss_hist_logger.handle_backward_batch)
         trainer.on_backward_pass(probability_by_image_logger.handle_backward_batch)
+        if args.log_bias:
+            bias_logger = lib.loggers.BiasByEpochLogger(args.pickle_dir,
+                                                       args.pickle_prefix,
+                                                       1)
+            trainer.on_backward_pass(bias_logger.handle_backward_batch)
+
+
     stopped = False
 
 
@@ -576,9 +585,11 @@ def main(args):
         image_id_hist_logger.next_epoch()
         loss_hist_logger.next_epoch()
         probability_by_image_logger.next_epoch()
+        backpropper.next_epoch()
         if selector:
             selector.next_epoch()
-        backpropper.next_epoch()
+        if args.log_bias:
+            bias_logger.next_epoch()
         epoch += 1
 
 if __name__ == '__main__':
