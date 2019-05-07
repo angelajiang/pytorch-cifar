@@ -108,3 +108,37 @@ def CrossEntropyLoss(reduce=True):
             cross_entropy_loss = - outputs
             return cross_entropy_loss
     return fn
+
+def MSELoss(reduce=True):
+    if reduce:
+        def fn(outputs, labels):
+            batch_size = outputs.size()[0]
+            num_classes = outputs.size()[1]
+            outputs = F.softmax(outputs, dim=1)
+            targets = torch.eye(num_classes)
+            l2_dists = None
+            for output, label in zip(outputs, labels):
+                target = targets[int(label.item())]
+                l2_dist = torch.dist(target, output.cpu())
+                if l2_dists is None:
+                    l2_dists = l2_dist.unsqueeze(-1)
+                else:
+                    l2_dists = torch.cat((l2_dists, l2_dist.unsqueeze(-1)))
+            return torch.mean(l2_dists)
+    else:
+        def fn(outputs, labels):
+            batch_size = outputs.size()[0]
+            num_classes = outputs.size()[1]
+            outputs = F.softmax(outputs, dim=1)
+            targets = torch.eye(num_classes)
+            l2_dists = None
+            for output, label in zip(outputs, labels):
+                target = targets[int(label.item())]
+                l2_dist = torch.dist(target, output.cpu())
+                if l2_dists is None:
+                    l2_dists = l2_dist.unsqueeze(-1)
+                else:
+                    l2_dists = torch.cat((l2_dists, l2_dist.unsqueeze(-1)))
+            return l2_dists
+    return fn
+

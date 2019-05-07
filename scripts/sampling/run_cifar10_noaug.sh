@@ -38,7 +38,6 @@ do
 
   time python main.py \
     --sb-strategy=$SAMPLING_STRATEGY \
-    --sb-start-epoch=$START_EPOCH \
     --net=$NET \
     --batch-size=$BATCH_SIZE \
     --decay=$DECAY \
@@ -46,7 +45,6 @@ do
     --pickle-dir=$PICKLE_DIR \
     --pickle-prefix=$PICKLE_PREFIX \
     --sampling-min=$SAMPLING_MIN \
-    --augment \
     --seed=$SEED \
     --lr-sched $LR &> $OUTPUT_DIR/$OUTPUT_FILE
 
