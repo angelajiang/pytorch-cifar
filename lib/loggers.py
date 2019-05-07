@@ -24,12 +24,13 @@ class BiasByEpochLogger(object):
         self.data = self.base_dict(self.current_epoch)
 
     def base_dict(self, epoch):
-        return {"epoch": epoch, "selectivities": [], "cosine_sims": [], "losses": []}
+        return {"epoch": epoch, "selectivities": [], "dists": [], "baseline_norms": [], "losses": []}
 
     def init_data(self):
         # {"epoch": 0,
         #       "selectivities": [0.1, 0.3...],
-        #       "cosine_sims": [1, 2, 3], 
+        #       "dists": [[0.1, 0.2, 0.3],... ],    # Per variable, per batch
+        #       "baseline_norms": [[1, 2, 3],... ], # Per variable, per batch
         #       "losses": [2.7, 2.3, 2.3], 
         # }
         self.data = self.base_dict(0)
@@ -42,8 +43,12 @@ class BiasByEpochLogger(object):
     def handle_backward_batch(self, batch):
         average_loss = sum([example.loss.item() for example in batch]) / float(len(batch))
         selectivity = sum([1 for example in batch if example.select]) / float(len(batch))
+        baseline_norms = batch[0].baseline_norms
+        dists = batch[0].dists
         self.data["losses"].append(average_loss)
         self.data["selectivities"].append(selectivity)
+        self.data["dists"].append(dists)
+        self.data["baseline_norms"].append(baseline_norms)
 
     def write(self):
         epoch_file = "{}.epoch_{}.pickle".format(self.data_pickle_file,
@@ -320,15 +325,6 @@ class VariancesByEpochLogger(object):
     def update_data(self, variance):
         self.data += [variance]
 
-    '''
-    def total_norm(self,):
-        total_norm = 0
-	for p in self.net.parameters():
-            param_norm = p.grad.data.norm(2)
-            total_norm += param_norm.item() ** 2
-        total_norm = total_norm ** (1. / 2)
-        return total_norm
-    '''
     def handle_backward_batch(self, batch):
         losses = [example.loss.item() for example in batch]
         variance = np.var(losses)

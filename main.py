@@ -448,10 +448,16 @@ def main(args):
 
     if args.sb_strategy == "sampling":
         final_selector = lib.selectors.SamplingSelector(probability_calculator)
-        final_backpropper = lib.backproppers.SamplingBackpropper(device,
-                                                                 dataset.model,
-                                                                 optimizer,
-                                                                 loss_fn)
+        if args.log_bias:
+            final_backpropper = lib.backproppers.GradientLoggingSamplingBackpropper(device,
+                                                                     dataset.model,
+                                                                     optimizer,
+                                                                     loss_fn)
+        else:
+            final_backpropper = lib.backproppers.SamplingBackpropper(device,
+                                                                     dataset.model,
+                                                                     optimizer,
+                                                                     loss_fn)
     elif args.sb_strategy == "deterministic":
         final_selector = lib.selectors.DeterministicSamplingSelector(probability_calculator,
                                                                      initial_sum=1)
@@ -468,10 +474,16 @@ def main(args):
     elif args.sb_strategy == "topk":
         final_selector = lib.selectors.TopKSelector(probability_calculator,
                                                     args.sample_size)
-        final_backpropper = lib.backproppers.BaselineBackpropper(device,
-                                                                 dataset.model,
-                                                                 optimizer,
-                                                                 loss_fn)
+        if args.log_bias:
+            final_backpropper = lib.backproppers.GradientLoggingSamplingBackpropper(device,
+                                                                     dataset.model,
+                                                                     optimizer,
+                                                                     loss_fn)
+        else:
+            final_backpropper = lib.backproppers.BaselineBackpropper(device,
+                                                                     dataset.model,
+                                                                     optimizer,
+                                                                     loss_fn)
     elif args.sb_strategy == "lowk":
         final_selector = lib.selectors.LowKSelector(probability_calculator,
                                                     args.sample_size)

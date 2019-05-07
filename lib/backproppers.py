@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -120,6 +121,80 @@ class SamplingBackpropper(object):
         self.optimizer.step()
 
         return batch
+
+class GradientLoggingSamplingBackpropper(SamplingBackpropper):
+
+    def __init__(self, device, net, optimizer, loss_fn):
+        super(GradientLoggingSamplingBackpropper, self).__init__(device, net, optimizer, loss_fn)
+
+    def _get_data_tensor(self, batch):
+        data = [example.datum for example in batch]
+        return torch.stack(data)
+
+    def _get_targets_tensor(self, batch):
+        targets = [example.target for example in batch]
+        return torch.stack(targets)
+
+    def backward_pass(self, batch):
+
+        self.net.train()
+
+        chosen_data = self._get_chosen_data_tensor(batch)
+        chosen_targets = self._get_chosen_targets_tensor(batch)
+
+        data = self._get_data_tensor(batch)
+        targets = self._get_targets_tensor(batch)
+        probabilities = self._get_chosen_probabilities_tensor(batch)
+
+        # Run forward pass
+        # Necessary if the network has been updated between last forward pass
+        baseline_outputs = self.net(data) 
+        chosen_outputs = self.net(chosen_data) 
+
+        baseline_losses = self.loss_fn(reduce=False)(baseline_outputs, targets)
+        chosen_losses = self.loss_fn(reduce=False)(chosen_outputs, chosen_targets)
+
+        # Add for logging selected loss
+        for example, baseline_loss, chosen_loss in zip(batch, baseline_losses, chosen_losses):
+            example.backpropped_loss = baseline_loss.item()
+            example.chosen_loss = chosen_loss.item()
+
+        # Reduce loss
+        baseline_loss = baseline_losses.mean()
+        chosen_loss = chosen_losses.mean()
+
+        # Calculate chosen gradients
+        self.optimizer.zero_grad()
+        chosen_loss.backward()
+
+        # Log chosen gradients
+        chosen_grads = []
+	for p in self.net.parameters():
+            chosen_grads.append(p.grad.data.cpu().numpy())
+
+        # Calculate baseline gradients
+        self.optimizer.zero_grad()
+        baseline_loss.backward()
+
+        # Log baseline gradients
+        dists = []
+        baseline_norms = []
+	for p, chosen_grad in zip(self.net.parameters(), chosen_grads):
+            baseline_grad = p.grad.data.cpu().numpy()
+            dist = np.linalg.norm(chosen_grad - baseline_grad)
+            dists.append(dist)
+            baseline_norms.append(np.linalg.norm(baseline_grad))
+
+        # Dirty hack to add logging data to first example :#
+        batch[0].dists = dists
+        batch[0].baseline_norms = baseline_norms
+
+        # Update weights with baseline losses
+        self.optimizer.step()
+
+        return batch
+
+
 
 
 class ReweightedBackpropper(object):
