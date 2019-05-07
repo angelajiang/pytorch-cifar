@@ -2,6 +2,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+def CosineSim(a, b):
+    cos_sim = np.dot(a, b)/(np.linalg.norm(a)*np.linalg.norm(b))
+    return cos_sim
+
 class PrimedBackpropper(object):
     def __init__(self, initial, final, initial_epochs, epoch=0):
         self.epoch = epoch
@@ -135,6 +139,7 @@ class GradientLoggingSamplingBackpropper(SamplingBackpropper):
         targets = [example.target for example in batch]
         return torch.stack(targets)
 
+
     def backward_pass(self, batch):
 
         self.net.train()
@@ -170,32 +175,29 @@ class GradientLoggingSamplingBackpropper(SamplingBackpropper):
         # Log chosen gradients
         chosen_grads = []
 	for p in self.net.parameters():
-            chosen_grads.append(p.grad.data.cpu().numpy())
+            chosen_grads.append(p.grad.data.cpu().numpy().flatten())
 
         # Calculate baseline gradients
         self.optimizer.zero_grad()
         baseline_loss.backward()
 
         # Log baseline gradients
-        dists = []
+        cosine_sims = []
         baseline_norms = []
 	for p, chosen_grad in zip(self.net.parameters(), chosen_grads):
-            baseline_grad = p.grad.data.cpu().numpy()
-            dist = np.linalg.norm(chosen_grad - baseline_grad)
-            dists.append(dist)
-            baseline_norms.append(np.linalg.norm(baseline_grad))
+            baseline_grad = p.grad.data.cpu().numpy().flatten()
+            baseline_norms.append(torch.norm(p.grad.data))
+            cosine_sim = CosineSim(baseline_grad, chosen_grad)
+            cosine_sims.append(cosine_sim)
 
         # Dirty hack to add logging data to first example :#
-        batch[0].dists = dists
+        batch[0].cos_sims = cosine_sims
         batch[0].baseline_norms = baseline_norms
 
         # Update weights with baseline losses
         self.optimizer.step()
 
         return batch
-
-
-
 
 class ReweightedBackpropper(object):
 

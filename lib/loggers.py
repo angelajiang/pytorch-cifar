@@ -24,7 +24,7 @@ class BiasByEpochLogger(object):
         self.data = self.base_dict(self.current_epoch)
 
     def base_dict(self, epoch):
-        return {"epoch": epoch, "selectivities": [], "dists": [], "baseline_norms": [], "losses": []}
+        return {"epoch": epoch, "selectivities": [], "cos_sims": [], "baseline_norms": [], "losses": []}
 
     def init_data(self):
         # {"epoch": 0,
@@ -44,10 +44,10 @@ class BiasByEpochLogger(object):
         average_loss = sum([example.loss.item() for example in batch]) / float(len(batch))
         selectivity = sum([1 for example in batch if example.select]) / float(len(batch))
         baseline_norms = batch[0].baseline_norms
-        dists = batch[0].dists
+        cos_sims = batch[0].cos_sims
         self.data["losses"].append(average_loss)
         self.data["selectivities"].append(selectivity)
-        self.data["dists"].append(dists)
+        self.data["cos_sims"].append(cos_sims)
         self.data["baseline_norms"].append(baseline_norms)
 
     def write(self):
