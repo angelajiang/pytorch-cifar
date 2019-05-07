@@ -568,7 +568,7 @@ def main(args):
         if args.log_bias:
             bias_logger = lib.loggers.BiasByEpochLogger(args.pickle_dir,
                                                        args.pickle_prefix,
-                                                       1)
+                                                       10)
             trainer.on_backward_pass(bias_logger.handle_backward_batch)
 
 
