@@ -8,12 +8,14 @@ class Example(object):
     # TODO: Add ExampleCollection class
     def __init__(self,
                  loss=None,
+                 output=None,
                  softmax_output=None,
                  target=None,
                  datum=None,
                  image_id=None,
                  select_probability=None):
         self.loss = loss.detach()
+        self.output = output.detach()
         self.softmax_output = softmax_output.detach()
         self.target = target.detach()
         self.datum = datum.detach()
@@ -128,7 +130,7 @@ class Trainer(object):
         losses = self.loss_fn(reduce=False)(outputs, targets)
         softmax_outputs = nn.Softmax()(outputs)
 
-        examples = zip(losses, softmax_outputs, targets, data, image_ids)
+        examples = zip(losses, outputs, softmax_outputs, targets, data, image_ids)
         return [Example(*example) for example in examples]
 
     def get_batch(self, final):
@@ -263,7 +265,7 @@ class KathTrainer(object):
         losses = self.loss_fn(reduce=False)(outputs, targets)
         softmax_outputs = nn.Softmax()(outputs)
 
-        examples = zip(losses, softmax_outputs, targets, data, image_ids)
+        examples = zip(losses, outputs, softmax_outputs, targets, data, image_ids)
         return [Example(*example) for example in examples]
 
 

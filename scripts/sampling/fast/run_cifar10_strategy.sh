@@ -2,7 +2,7 @@ expname=$1
 SAMPLING_MIN=$2
 NET=$3
 BATCH_SIZE=$4
-START_EPOCH=$5
+SB_STRATEGY=$5
 
 NUM_TRIALS=1
 
@@ -12,10 +12,9 @@ ulimit -n 2048
 ulimit -a
 
 EXP_PREFIX=$expname
-SAMPLING_STRATEGY="sampling"
-LR="data/config/lr_sched_orig"
+LR="data/config/lr_sched_fast"
 DECAY=0.0005
-MAX_NUM_BACKPROPS=17500000
+MAX_NUM_BACKPROPS=5840000
 SEED=1337
 
 EXP_NAME=$EXP_PREFIX
@@ -31,14 +30,14 @@ git rev-parse HEAD &> $OUTPUT_DIR/sha
 for i in `seq 1 $NUM_TRIALS`
 do
 
-  OUTPUT_FILE="sampling_cifar10_"$NET"_"$SAMPLING_MIN"_"$BATCH_SIZE"_0.0_"$DECAY"_trial"$i"_seed"$SEED"_v2"
-  PICKLE_PREFIX="sampling_cifar10_"$NET"_"$SAMPLING_MIN"_"$BATCH_SIZE"_0.0_"$DECAY"_trial"$i"_seed"$SEED
+  OUTPUT_FILE=$SB_STRATEGY"_cifar10_"$NET"_"$SAMPLING_MIN"_"$BATCH_SIZE"_0.0_"$DECAY"_trial"$i"_seed"$SEED"_v2"
+  PICKLE_PREFIX=$SB_STRATEGY"_cifar10_"$NET"_"$SAMPLING_MIN"_"$BATCH_SIZE"_0.0_"$DECAY"_trial"$i"_seed"$SEED
 
   echo $OUTPUT_DIR/$OUTPUT_FILE
 
   time python main.py \
-    --sb-strategy=$SAMPLING_STRATEGY \
-    --sb-start-epoch=$START_EPOCH \
+    --sb-strategy=$SB_STRATEGY \
+    --sb-start-epoch=1 \
     --net=$NET \
     --batch-size=$BATCH_SIZE \
     --decay=$DECAY \

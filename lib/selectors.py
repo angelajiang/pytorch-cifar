@@ -1,3 +1,5 @@
+from scipy import stats
+import collections
 import math
 import numpy as np
 import torch
@@ -36,9 +38,7 @@ class TopKSelector(object):
 
     def mark(self, forward_pass_batch):
         for example in forward_pass_batch:
-            example.select_probability = self.get_select_probability(
-                    example.target,
-                    example.softmax_output)
+            example.select_probability = self.get_select_probability(example)
         sps = [example.select_probability for example in forward_pass_batch]
         indices = np.array(sps).argsort()[-self.sample_size:]
         for i in range(len(forward_pass_batch)):
@@ -61,9 +61,7 @@ class LowKSelector(object):
 
     def mark(self, forward_pass_batch):
         for example in forward_pass_batch:
-            example.select_probability = self.get_select_probability(
-                    example.target,
-                    example.softmax_output)
+            example.select_probability = self.get_select_probability(example)
         sps = [example.select_probability for example in forward_pass_batch]
         indices = np.array(sps).argsort()[:self.sample_size]
 
@@ -86,9 +84,7 @@ class RandomKSelector(object):
 
     def mark(self, forward_pass_batch):
         for example in forward_pass_batch:
-            example.select_probability = self.get_select_probability(
-                    example.target,
-                    example.softmax_output)
+            example.select_probability = self.get_select_probability(example)
         sps = [example.select_probability for example in forward_pass_batch]
         all_indices = np.array(sps).argsort()
         shuffle(all_indices)
@@ -113,10 +109,8 @@ class SamplingSelector(object):
 
     def mark(self, forward_pass_batch):
         for example in forward_pass_batch:
-            sp_tensor = self.get_select_probability(
-                    example.target,
-                    example.softmax_output)
-            example.select_probability = sp_tensor.item()
+            prob = self.get_select_probability(example)
+            example.select_probability = prob
             example.select = self.select(example)
         return forward_pass_batch
 
@@ -146,9 +140,7 @@ class DeterministicSamplingSelector(object):
 
     def mark(self, forward_pass_batch):
         for example in forward_pass_batch:
-            sp_tensor = self.get_select_probability(
-                            example.target,
-                            example.softmax_output)
+            sp_tensor = self.get_select_probability(example)
             example.select_probability = sp_tensor.item()
             self.increase_select_sum(example)
             example.select = self.select(example)
@@ -169,6 +161,23 @@ class BaselineSelector(object):
         return forward_pass_batch
 
 
+class RelativeProbabiltyCalculator(object):
+    def __init__(self, device, loss_fn, sampling_min, history_length):
+        self.device = device
+        self.loss_fn = loss_fn
+        self.historical_losses = collections.deque(maxlen=history_length)
+        self.sampling_min = sampling_min
+
+    def update_history(self, loss):
+        self.historical_losses.append(loss)
+
+    def get_probability(self, example):
+        loss = self.loss_fn()(example.output.unsqueeze(0), example.target.unsqueeze(0))
+        loss = loss.cpu().data.numpy()
+        self.update_history(loss)
+        prob = stats.percentileofscore(self.historical_losses, loss, kind="rank") / 100.
+        return max(self.sampling_min, prob)
+
 class SelectProbabiltyCalculator(object):
     def __init__(self, sampling_min, sampling_max, num_classes, device,
                  square=False, prob_transform=None):
@@ -183,14 +192,16 @@ class SelectProbabiltyCalculator(object):
         else:
             self.prob_transform  = lambda x: x
 
-    def get_probability(self, target, softmax_output):
+    def get_probability(self, example):
+        target = example.target
+        softmax_output = example.softmax_output
         target_tensor = self.hot_encode_scalar(target)
         l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
         if self.square:
             l2_dist *= l2_dist
         base = torch.clamp(self.prob_transform(l2_dist), min=self.sampling_min)
         prob = torch.clamp(base, max=self.sampling_max).detach()
-        return prob
+        return prob.item()
 
     def hot_encode_scalar(self, target):
         target_vector = np.zeros(self.num_classes)
@@ -247,7 +258,9 @@ class PScaledProbabiltyCalculator(object):
     def pscale(self):
         return 1. / self.current_max_prob
 
-    def get_probability(self, target, softmax_output):
+    def get_probability(self, example):
+        target = example.target
+        softmax_output = example.softmax_output
         target_tensor = self.hot_encode_scalar(target)
         l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
         if self.square:
@@ -257,7 +270,7 @@ class PScaledProbabiltyCalculator(object):
                         max=self.sampling_max).detach()
         self.update_pscale(p)
         pscaled_p = p * self.pscale
-        return pscaled_p
+        return pscaled_p.item()
 
     def hot_encode_scalar(self, target):
         target_vector = np.zeros(self.num_classes)
@@ -286,7 +299,9 @@ class ProportionalProbabiltyCalculator(object):
         else:
             self.prob_transform  = lambda x: x
 
-    def get_probability(self, target, softmax_output):
+    def get_probability(self, example):
+        target = example.target
+        softmax_output = example.softmax_output
         target_tensor = self.hot_encode_scalar(target)
         l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
         if self.square:
@@ -295,7 +310,7 @@ class ProportionalProbabiltyCalculator(object):
         transformed_prob = self.prob_transform(prob)
         clamped_prob = torch.clamp(transformed_prob,
                                    min=self.sampling_min)
-        return clamped_prob
+        return clamped_prob.item()
 
     def hot_encode_scalar(self, target):
         target_vector = np.zeros(self.num_classes)

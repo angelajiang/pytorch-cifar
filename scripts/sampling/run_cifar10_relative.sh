@@ -2,7 +2,8 @@ expname=$1
 SAMPLING_MIN=$2
 NET=$3
 BATCH_SIZE=$4
-START_EPOCH=$5
+LOSS=$5
+MAX_HISTORY_LEN=$6
 
 NUM_TRIALS=1
 
@@ -13,12 +14,12 @@ ulimit -a
 
 EXP_PREFIX=$expname
 SAMPLING_STRATEGY="sampling"
-LR="data/config/lr_sched_orig"
+LR="data/config/lr_sched_fast"
 DECAY=0.0005
-MAX_NUM_BACKPROPS=17500000
+MAX_NUM_BACKPROPS=5500000
 SEED=1337
 
-EXP_NAME=$EXP_PREFIX
+EXP_NAME=$EXP_PREFIX"_"$LOSS
 
 mkdir "/proj/BigLearning/ahjiang/output/cifar10/"
 OUTPUT_DIR="/proj/BigLearning/ahjiang/output/cifar10/"$EXP_NAME
@@ -31,14 +32,17 @@ git rev-parse HEAD &> $OUTPUT_DIR/sha
 for i in `seq 1 $NUM_TRIALS`
 do
 
-  OUTPUT_FILE="sampling_cifar10_"$NET"_"$SAMPLING_MIN"_"$BATCH_SIZE"_0.0_"$DECAY"_trial"$i"_seed"$SEED"_v2"
-  PICKLE_PREFIX="sampling_cifar10_"$NET"_"$SAMPLING_MIN"_"$BATCH_SIZE"_0.0_"$DECAY"_trial"$i"_seed"$SEED
+  OUTPUT_FILE="sampling_cifar10_"$NET"_"$SAMPLING_MIN"_"$BATCH_SIZE"_"$MAX_HISTORY_LEN"_"$DECAY"_trial"$i"_seed"$SEED"_v2"
+  PICKLE_PREFIX="sampling_cifar10_"$NET"_"$SAMPLING_MIN"_"$BATCH_SIZE"_"$MAX_HISTORY_LEN"_"$DECAY"_trial"$i"_seed"$SEED
 
   echo $OUTPUT_DIR/$OUTPUT_FILE
 
   time python main.py \
+    --prob-strategy="relative" \
+    --max-history-len=$MAX_HISTORY_LEN \
+    --prob-loss-fn=$LOSS \
+    --sb-start-epoch=1 \
     --sb-strategy=$SAMPLING_STRATEGY \
-    --sb-start-epoch=$START_EPOCH \
     --net=$NET \
     --batch-size=$BATCH_SIZE \
     --decay=$DECAY \

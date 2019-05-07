@@ -78,12 +78,16 @@ def set_experiment_default_args(parser):
     parser.add_argument('--loss-fn', default="cross", metavar='N',
                         help='Loss function among {cross, hinge, cross_squared, cross_custom}')
 
-    parser.add_argument('--sb-strategy', default="deterministic", metavar='N',
+    parser.add_argument('--sb-strategy', default="sampling", metavar='N',
                         help='Selective backprop strategy among {baseline, deterministic, sampling}')
     parser.add_argument('--prob-strategy', default="vanilla", metavar='N',
-                        help='Probability calculator strategy among {vanilla, pscale, proportional}')
+                        help='Probability calculator strategy among {vanilla, pscale, proportional, relative}')
     parser.add_argument('--prob-pow', type=float, default=1, metavar='N',
                         help='Power to scale probability by')
+    parser.add_argument('--prob-loss-fn', default="cross", metavar='N',
+                        help='Loss function among {cross, mse}')
+    parser.add_argument('--max-history-len', type=int, default=None, metavar='N',
+                        help='History length for relative prob calculator')
 
     parser.add_argument('--sb-start-epoch', type=int, default=0,
                         help='epoch to start selective backprop')
@@ -261,11 +265,13 @@ def print_config(args):
     print("config loss-fn {}".format(args.loss_fn))
     print("config sb-strategy {}".format(args.sb_strategy))
     print("config prob-strategy {}".format(args.prob_strategy))
+    print("config prob-loss-fn {}".format(args.prob_loss_fn))
     print("config max-num-backprops {}".format(args.max_num_backprops))
     print("config sampling-strategy {}".format(args.sampling_strategy))
     print("config sampling-min {}".format(args.sampling_min))
     print("config sampling-max {}".format(args.sampling_max))
     print("config prob_pow {}".format(args.prob_pow))
+    print("config max_history_len {}".format(args.max_history_len))
 
 def main(args):
 
@@ -376,7 +382,14 @@ def main(args):
     else:
         print("Error: Loss function cannot be {}".format(args.loss_fn))
         exit()
-    print(loss_fn)
+
+    if args.prob_loss_fn == "cross":
+        prob_loss_fn = nn.CrossEntropyLoss
+    elif args.prob_loss_fn == "mse":
+        prob_loss_fn = lib.losses.MSELoss
+    else:
+        print("Error: Loss function cannot be {}".format(args.loss_fn))
+        exit()
 
     state = State(dataset.num_training_images,
                   args.pickle_dir,
@@ -405,7 +418,11 @@ def main(args):
                                                                           device,
                                                                           square=square,
                                                                           prob_transform=prob_transform)
-
+    elif args.prob_strategy == "relative":
+        probability_calculator = lib.selectors.RelativeProbabiltyCalculator(device,
+                                                                            prob_loss_fn,
+                                                                            args.sampling_min,
+                                                                            args.max_history_len)
     elif args.prob_strategy == "pscale":
         pscale_update_steps = dataset.num_training_images / 5
         print("config pscale_update_steps {}".format(pscale_update_steps))
