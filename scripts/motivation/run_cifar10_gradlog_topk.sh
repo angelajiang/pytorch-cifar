@@ -48,6 +48,7 @@ do
     --pickle-prefix=$PICKLE_PREFIX \
     --sampling-min=$SAMPLING_MIN \
     --augment \
+    --log-bias \
     --seed=$SEED \
     --lr $LR &> $OUTPUT_DIR/$OUTPUT_FILE
 done
