@@ -39,7 +39,7 @@ class BiasByEpochLogger(object):
         if not os.path.exists(data_pickle_dir):
             os.mkdir(data_pickle_dir)
 
-    def handle_backward_batch(self, net, batch):
+    def handle_backward_batch(self, batch):
         average_loss = sum([example.loss.item() for example in batch]) / float(len(batch))
         selectivity = sum([1 for example in batch if example.select]) / float(len(batch))
         self.data["losses"].append(average_loss)
@@ -112,7 +112,7 @@ class ProbabilityByImageLogger(object):
                 self.data[image_id] = []
             self.data[image_id].append(probability)
 
-    def handle_backward_batch(self, net, batch):
+    def handle_backward_batch(self, batch):
         ids = [example.image_id.item() for example in batch]
         probabilities = [example.select_probability for example in batch]
         self.update_data(ids, probabilities)
@@ -152,7 +152,7 @@ class ImageIdHistLogger(object):
         for chosen_id in image_ids:
             self.data[chosen_id] += 1
 
-    def handle_backward_batch(self, net, batch):
+    def handle_backward_batch(self, batch):
         ids = [example.image_id.item() for example in batch if example.select]
         self.update_data(ids)
 
@@ -197,7 +197,7 @@ class LossesByEpochLogger(object):
     def update_data(self, losses):
         self.data += losses
 
-    def handle_backward_batch(self, net, batch):
+    def handle_backward_batch(self, batch):
         losses = [example.loss.item() for example in batch]
         self.update_data(losses)
 
@@ -239,7 +239,7 @@ class LossesByImageLogger(object):
                 self.data[image_id] = []
             self.data[image_id].append(loss)
 
-    def handle_backward_batch(self, net, batch):
+    def handle_backward_batch(self, batch):
         ids = [example.image_id for example in batch]
         losses = [example.loss for example in batch]
         self.update_data(ids, losses)
@@ -280,7 +280,7 @@ class VariancesByImageLogger(object):
                 self.data[image_id] = []
             self.data[image_id].append(loss)
 
-    def handle_backward_batch(self, net, batch):
+    def handle_backward_batch(self, batch):
         ids = [example.image_id for example in batch]
         losses = [example.loss for example in batch]
         self.update_data(ids, losses)
@@ -320,7 +320,21 @@ class VariancesByEpochLogger(object):
     def update_data(self, variance):
         self.data += [variance]
 
+<<<<<<< HEAD
+    '''
+    def total_norm(self,):
+        total_norm = 0
+	for p in self.net.parameters():
+            param_norm = p.grad.data.norm(2)
+            total_norm += param_norm.item() ** 2
+        total_norm = total_norm ** (1. / 2)
+        return total_norm
+    '''
+
     def handle_backward_batch(self, net, batch):
+=======
+    def handle_backward_batch(self, batch):
+>>>>>>> parent of 0b0f1eb... Add current state of network to emit_backwards
         losses = [example.loss.item() for example in batch]
         variance = np.var(losses)
         self.update_data(variance)
@@ -364,7 +378,7 @@ class VariancesByAverageProbabilityByImageLogger(object):
             self.data["losses"][image_id].append(loss)
             self.data["probabilities"][image_id].append(prob)
 
-    def handle_backward_batch(self, net, batch):
+    def handle_backward_batch(self, batch):
         ids = [example.image_id for example in batch]
         losses = [example.loss for example in batch]
         probabilities = [example.select_probability for example in batch]
@@ -438,7 +452,7 @@ class Logger(object):
         # Populate batch_stats
         self.partition_loss += sum([example.loss for example in batch])
 
-    def handle_backward_batch(self, net, batch):
+    def handle_backward_batch(self, batch):
 
         self.current_batch += 1
 

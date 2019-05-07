@@ -59,7 +59,7 @@ class Trainer(object):
             self.load_lr_schedule(lr_schedule)
             self.on_backward_pass(self.update_learning_rate)
 
-    def update_num_backpropped(self, net, batch):
+    def update_num_backpropped(self, batch):
         self.global_num_backpropped += sum([1 for e in batch if e.select])
 
     def on_forward_pass(self, handler):
@@ -74,7 +74,7 @@ class Trainer(object):
 
     def emit_backward_pass(self, batch):
         for handler in self.backward_pass_handlers:
-            handler(self.net, batch)
+            handler(batch)
 
     # TODO move to a LRScheduler object or to backpropper
     def load_lr_schedule(self, schedule_path):
@@ -182,7 +182,7 @@ class KathTrainer(object):
             self.on_backward_pass(self.update_learning_rate)
 
 
-    def update_num_backpropped(self, net, batch):
+    def update_num_backpropped(self, batch):
         self.global_num_backpropped += sum([1 for e in batch if e.select])
 
     def on_forward_pass(self, handler):
