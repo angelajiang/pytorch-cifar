@@ -1,6 +1,8 @@
 import numpy as np
 import torch
 import torch.nn as nn
+from timeit import default_timer as timer
+
 
 def CosineSim(a, b):
     cos_sim = np.dot(a, b)/(np.linalg.norm(a)*np.linalg.norm(b))
@@ -184,15 +186,39 @@ class GradientLoggingSamplingBackpropper(SamplingBackpropper):
         # Log baseline gradients
         cosine_sims = []
         baseline_norms = []
+        total_num_same = 0
+        total_num_weights = 0
 	for p, chosen_grad in zip(self.net.parameters(), chosen_grads):
             baseline_grad = p.grad.data.cpu().numpy().flatten()
+
+            # Keep track of baseline norm
             baseline_norms.append(torch.norm(p.grad.data))
+
+            # Keep track of cosine similarity
             cosine_sim = CosineSim(baseline_grad, chosen_grad)
             cosine_sims.append(cosine_sim)
+
+            # Keep track of sign changes
+
+            eps = 1e-5
+            baseline_grad[np.abs(baseline_grad) < eps] = 0
+            chosen_grad[np.abs(chosen_grad) < eps] = 0
+
+            a = np.sign(baseline_grad)
+            b = np.sign(chosen_grad)
+            ands = a * b
+
+            num_same = np.where(ands >=  0)[0].size
+
+            total_num_same += num_same
+            total_num_weights += len(ands)
+
+        fraction_same = total_num_same / float(total_num_weights)
 
         # Dirty hack to add logging data to first example :#
         batch[0].cos_sims = cosine_sims
         batch[0].baseline_norms = baseline_norms
+        batch[0].fraction_same = fraction_same
 
         # Update weights with baseline losses
         self.optimizer.step()

@@ -24,12 +24,18 @@ class BiasByEpochLogger(object):
         self.data = self.base_dict(self.current_epoch)
 
     def base_dict(self, epoch):
-        return {"epoch": epoch, "selectivities": [], "cos_sims": [], "baseline_norms": [], "losses": []}
+        return {"epoch": epoch,
+                "selectivities": [],
+                "cos_sims": [],
+                "baseline_norms": [],
+                "losses": [],
+                "fraction_same": []}
 
     def init_data(self):
         # {"epoch": 0,
         #       "selectivities": [0.1, 0.3...],
-        #       "dists": [[0.1, 0.2, 0.3],... ],    # Per variable, per batch
+        #       "fraction_same": [0.9, 0.7...],
+        #       "cos_sims": [[0.1, 0.2, 0.3],... ],    # Per variable, per batch
         #       "baseline_norms": [[1, 2, 3],... ], # Per variable, per batch
         #       "losses": [2.7, 2.3, 2.3], 
         # }
@@ -45,10 +51,12 @@ class BiasByEpochLogger(object):
         selectivity = sum([1 for example in batch if example.select]) / float(len(batch))
         baseline_norms = batch[0].baseline_norms
         cos_sims = batch[0].cos_sims
+        fraction_same = batch[0].fraction_same
         self.data["losses"].append(average_loss)
         self.data["selectivities"].append(selectivity)
         self.data["cos_sims"].append(cos_sims)
         self.data["baseline_norms"].append(baseline_norms)
+        self.data["fraction_same"].append(fraction_same)
 
     def write(self):
         epoch_file = "{}.epoch_{}.pickle".format(self.data_pickle_file,
