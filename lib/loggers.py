@@ -320,7 +320,6 @@ class VariancesByEpochLogger(object):
     def update_data(self, variance):
         self.data += [variance]
 
-<<<<<<< HEAD
     '''
     def total_norm(self,):
         total_norm = 0
@@ -330,11 +329,7 @@ class VariancesByEpochLogger(object):
         total_norm = total_norm ** (1. / 2)
         return total_norm
     '''
-
-    def handle_backward_batch(self, net, batch):
-=======
     def handle_backward_batch(self, batch):
->>>>>>> parent of 0b0f1eb... Add current state of network to emit_backwards
         losses = [example.loss.item() for example in batch]
         variance = np.var(losses)
         self.update_data(variance)
