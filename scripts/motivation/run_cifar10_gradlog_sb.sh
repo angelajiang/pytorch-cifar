@@ -49,6 +49,9 @@ do
     --augment \
     --log-bias \
     --seed=$SEED \
+    --imageids-log-interval=100 \
+    --losses-log-interval=100 \
+    --confidences-log-interval=100 \
     --lr $LR &> $OUTPUT_DIR/$OUTPUT_FILE
 
   let "SEED=SEED+1"
