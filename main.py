@@ -27,6 +27,8 @@ import lib.losses
 import lib.selectors
 import lib.trainer
 
+BIAS_LOG_INTERVAL = 10
+
 def count_tensors():
     num_tensors = 0
     for obj in gc.get_objects():
@@ -449,10 +451,16 @@ def main(args):
     if args.sb_strategy == "sampling":
         final_selector = lib.selectors.SamplingSelector(probability_calculator)
         if args.log_bias:
-            final_backpropper = lib.backproppers.GradientLoggingSamplingBackpropper(device,
+            #final_backpropper = lib.backproppers.GradientLoggingSamplingBackpropper(device,
+            #                                                         dataset.model,
+            #                                                         optimizer,
+            #                                                         loss_fn)
+            final_backpropper = lib.backproppers.GradientAndSelectivityLoggingBackpropper(device,
                                                                      dataset.model,
                                                                      optimizer,
-                                                                     loss_fn)
+                                                                     loss_fn,
+                                                                     10,
+                                                                     10)
         else:
             final_backpropper = lib.backproppers.SamplingBackpropper(device,
                                                                      dataset.model,
@@ -475,10 +483,16 @@ def main(args):
         final_selector = lib.selectors.TopKSelector(probability_calculator,
                                                     args.sample_size)
         if args.log_bias:
-            final_backpropper = lib.backproppers.GradientLoggingSamplingBackpropper(device,
+            #final_backpropper = lib.backproppers.GradientLoggingSamplingBackpropper(device,
+            #                                                         dataset.model,
+            #                                                         optimizer,
+            #                                                         loss_fn)
+            final_backpropper = lib.backproppers.GradientAndSelectivityLoggingBackpropper(device,
                                                                      dataset.model,
                                                                      optimizer,
-                                                                     loss_fn)
+                                                                     loss_fn,
+                                                                     10,
+                                                                     BIAS_LOG_INTERVAL)
         else:
             final_backpropper = lib.backproppers.BaselineBackpropper(device,
                                                                      dataset.model,
@@ -568,12 +582,10 @@ def main(args):
         if args.log_bias:
             bias_logger = lib.loggers.BiasByEpochLogger(args.pickle_dir,
                                                        args.pickle_prefix,
-                                                       1)
+                                                       BIAS_LOG_INTERVAL)
             trainer.on_backward_pass(bias_logger.handle_backward_batch)
 
-
     stopped = False
-
 
     epoch = start_epoch
 
@@ -602,6 +614,7 @@ def main(args):
             selector.next_epoch()
         if args.log_bias:
             bias_logger.next_epoch()
+            final_backpropper.next_epoch()
         epoch += 1
 
 if __name__ == '__main__':

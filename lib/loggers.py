@@ -27,7 +27,6 @@ class BiasByEpochLogger(object):
         return {"epoch": epoch,
                 "selectivities": [],
                 "cos_sims": [],
-                "baseline_norms": [],
                 "losses": [],
                 "fraction_same": []}
 
@@ -36,7 +35,6 @@ class BiasByEpochLogger(object):
         #       "selectivities": [0.1, 0.3...],
         #       "fraction_same": [0.9, 0.7...],
         #       "cos_sims": [[0.1, 0.2, 0.3],... ],    # Per variable, per batch
-        #       "baseline_norms": [[1, 2, 3],... ], # Per variable, per batch
         #       "losses": [2.7, 2.3, 2.3], 
         # }
         self.data = self.base_dict(0)
@@ -47,16 +45,15 @@ class BiasByEpochLogger(object):
             os.mkdir(data_pickle_dir)
 
     def handle_backward_batch(self, batch):
-        average_loss = sum([example.loss.item() for example in batch]) / float(len(batch))
-        selectivity = sum([1 for example in batch if example.select]) / float(len(batch))
-        baseline_norms = batch[0].baseline_norms
-        cos_sims = batch[0].cos_sims
-        fraction_same = batch[0].fraction_same
-        self.data["losses"].append(average_loss)
-        self.data["selectivities"].append(selectivity)
-        self.data["cos_sims"].append(cos_sims)
-        self.data["baseline_norms"].append(baseline_norms)
-        self.data["fraction_same"].append(fraction_same)
+        if hasattr(batch[0], "cos_sims"):
+            cos_sims = batch[0].cos_sims
+            fraction_same = batch[0].fraction_same
+            average_loss = sum([example.loss.item() for example in batch]) / float(len(batch))
+            selectivity = sum([1 for example in batch if example.select]) / float(len(batch))
+            self.data["losses"].append(average_loss)
+            self.data["selectivities"].append(selectivity)
+            self.data["cos_sims"].append(cos_sims)
+            self.data["fraction_same"].append(fraction_same)
 
     def write(self):
         epoch_file = "{}.epoch_{}.pickle".format(self.data_pickle_file,
