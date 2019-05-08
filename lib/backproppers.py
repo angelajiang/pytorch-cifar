@@ -192,14 +192,13 @@ class GradientLoggingSamplingBackpropper(SamplingBackpropper):
             baseline_grad = p.grad.data.cpu().numpy().flatten()
 
             # Keep track of baseline norm
-            baseline_norms.append(torch.norm(p.grad.data))
+            baseline_norms.append(np.linalg.norm(baseline_grad))
 
             # Keep track of cosine similarity
             cosine_sim = CosineSim(baseline_grad, chosen_grad)
             cosine_sims.append(cosine_sim)
 
             # Keep track of sign changes
-
             eps = 1e-5
             baseline_grad[np.abs(baseline_grad) < eps] = 0
             chosen_grad[np.abs(chosen_grad) < eps] = 0
