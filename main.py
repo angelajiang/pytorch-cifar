@@ -419,7 +419,12 @@ def main(args):
                                                                           square=square,
                                                                           prob_transform=prob_transform)
     elif args.prob_strategy == "relative":
-        probability_calculator = lib.selectors.RelativeProbabiltyCalculator(device,
+        probability_calculator = lib.selectors.RelativeProbabilityCalculator(device,
+                                                                            prob_loss_fn,
+                                                                            args.sampling_min,
+                                                                            args.max_history_len)
+    elif args.prob_strategy == "relative-squared":
+        probability_calculator = lib.selectors.RelativeSquaredProbabilityCalculator(device,
                                                                             prob_loss_fn,
                                                                             args.sampling_min,
                                                                             args.max_history_len)

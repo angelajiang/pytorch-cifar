@@ -161,7 +161,7 @@ class BaselineSelector(object):
         return forward_pass_batch
 
 
-class RelativeProbabiltyCalculator(object):
+class RelativeProbabilityCalculator(object):
     def __init__(self, device, loss_fn, sampling_min, history_length):
         self.device = device
         self.loss_fn = loss_fn
@@ -171,12 +171,22 @@ class RelativeProbabiltyCalculator(object):
     def update_history(self, loss):
         self.historical_losses.append(loss)
 
+    def calculate_probability(self, percentile):
+        return percentile / 100.
+
     def get_probability(self, example):
         loss = self.loss_fn()(example.output.unsqueeze(0), example.target.unsqueeze(0))
         loss = loss.cpu().data.numpy()
         self.update_history(loss)
-        prob = stats.percentileofscore(self.historical_losses, loss, kind="rank") / 100.
+        prob = self.calculate_probability(stats.percentileofscore(self.historical_losses, loss, kind="rank"))
         return max(self.sampling_min, prob)
+
+class RelativeSquaredProbabilityCalculator(RelativeProbabilityCalculator):
+    def __init__(self, device, loss_fn, sampling_min, history_length):
+        super(RelativeSquaredProbabilityCalculator, self).__init__(device, loss_fn, sampling_min, history_length)
+
+    def calculate_probability(self, percentile):
+        return math.pow(percentile / 100., 2)
 
 class SelectProbabiltyCalculator(object):
     def __init__(self, sampling_min, sampling_max, num_classes, device,
