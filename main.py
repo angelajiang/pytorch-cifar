@@ -428,6 +428,11 @@ def main(args):
                                                                             prob_loss_fn,
                                                                             args.sampling_min,
                                                                             args.max_history_len)
+    elif args.prob_strategy == "relative-cubed":
+        probability_calculator = lib.selectors.RelativeCubedProbabilityCalculator(device,
+                                                                            prob_loss_fn,
+                                                                            args.sampling_min,
+                                                                            args.max_history_len)
     elif args.prob_strategy == "pscale":
         pscale_update_steps = dataset.num_training_images / 5
         print("config pscale_update_steps {}".format(pscale_update_steps))

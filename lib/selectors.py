@@ -188,6 +188,13 @@ class RelativeSquaredProbabilityCalculator(RelativeProbabilityCalculator):
     def calculate_probability(self, percentile):
         return math.pow(percentile / 100., 2)
 
+class RelativeCubedProbabilityCalculator(RelativeProbabilityCalculator):
+    def __init__(self, device, loss_fn, sampling_min, history_length):
+        super(RelativeCubedProbabilityCalculator, self).__init__(device, loss_fn, sampling_min, history_length)
+
+    def calculate_probability(self, percentile):
+        return math.pow(percentile / 100., 3)
+
 class SelectProbabiltyCalculator(object):
     def __init__(self, sampling_min, sampling_max, num_classes, device,
                  square=False, prob_transform=None):
