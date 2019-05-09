@@ -3,7 +3,6 @@ SAMPLING_MIN=$2
 NET=$3
 BATCH_SIZE=$4
 START_EPOCH=$5
-LR=$6
 
 NUM_TRIALS=1
 
@@ -15,7 +14,8 @@ ulimit -a
 EXP_PREFIX=$expname
 SAMPLING_STRATEGY="sampling"
 DECAY=0.0005
-MAX_NUM_BACKPROPS=3000000
+LR="data/config/lr_sched_fast"
+MAX_NUM_BACKPROPS=5840000
 SEED=1337
 
 EXP_NAME=$EXP_PREFIX
@@ -52,7 +52,7 @@ do
     --imageids-log-interval=100 \
     --losses-log-interval=100 \
     --confidences-log-interval=100 \
-    --lr $LR &> $OUTPUT_DIR/$OUTPUT_FILE
+    --lr-sched $LR &> $OUTPUT_DIR/$OUTPUT_FILE
 
   let "SEED=SEED+1"
 done
