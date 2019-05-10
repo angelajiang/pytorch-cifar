@@ -451,10 +451,6 @@ def main(args):
     if args.sb_strategy == "sampling":
         final_selector = lib.selectors.SamplingSelector(probability_calculator)
         if args.log_bias:
-            #final_backpropper = lib.backproppers.GradientLoggingSamplingBackpropper(device,
-            #                                                         dataset.model,
-            #                                                         optimizer,
-            #                                                         loss_fn)
             final_backpropper = lib.backproppers.GradientAndSelectivityLoggingBackpropper(device,
                                                                      dataset.model,
                                                                      optimizer,
@@ -483,10 +479,6 @@ def main(args):
         final_selector = lib.selectors.TopKSelector(probability_calculator,
                                                     args.sample_size)
         if args.log_bias:
-            #final_backpropper = lib.backproppers.GradientLoggingSamplingBackpropper(device,
-            #                                                         dataset.model,
-            #                                                         optimizer,
-            #                                                         loss_fn)
             final_backpropper = lib.backproppers.GradientAndSelectivityLoggingBackpropper(device,
                                                                      dataset.model,
                                                                      optimizer,
