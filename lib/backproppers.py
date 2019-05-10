@@ -238,7 +238,12 @@ class GradientAndSelectivityLoggingBackpropper(SamplingBackpropper):
 class RandomGradientAndSelectivityLoggingBackpropper(GradientAndSelectivityLoggingBackpropper):
 
     def __init__(self, device, net, optimizer, loss_fn, selectivity_resolution, epoch_log_interval):
-        super(RandomGradientAndSelectivityLoggingBackpropper, self).__init__(device, net, optimizer, loss_fn)
+        super(RandomGradientAndSelectivityLoggingBackpropper, self).__init__(device,
+                                                                             net,
+                                                                             optimizer,
+                                                                             loss_fn,
+                                                                             selectivity_resolution,
+                                                                             epoch_log_interval)
 
     def _get_data_subset(self, batch, fraction):
         subset_size = int(fraction * len(batch))
