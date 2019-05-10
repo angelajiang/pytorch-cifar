@@ -129,7 +129,7 @@ class SamplingBackpropper(object):
 
         return batch
 
-class GradientAndSelectivityLoggingBackpropper(GradientLoggingSamplingBackpropper):
+class GradientAndSelectivityLoggingBackpropper(SamplingBackpropper):
 
     def __init__(self, device, net, optimizer, loss_fn, selectivity_resolution, epoch_log_interval):
         super(GradientAndSelectivityLoggingBackpropper, self).__init__(device, net, optimizer, loss_fn)
@@ -235,6 +235,16 @@ class GradientAndSelectivityLoggingBackpropper(GradientLoggingSamplingBackproppe
 
         return batch
 
+class RandomGradientAndSelectivityLoggingBackpropper(GradientAndSelectivityLoggingBackpropper):
+
+    def __init__(self, device, net, optimizer, loss_fn, selectivity_resolution, epoch_log_interval):
+        super(RandomGradientAndSelectivityLoggingBackpropper, self).__init__(device, net, optimizer, loss_fn)
+
+    def _get_data_subset(self, batch, fraction):
+        subset_size = int(fraction * len(batch))
+        subset = np.random.choice(batch, subset_size)
+        chosen_losses = [exp.loss for exp in subset]
+        return self._get_data_tensor(subset), self._get_targets_tensor(subset)
 
 class ReweightedBackpropper(object):
 
