@@ -95,7 +95,7 @@ class Trainer(object):
     def update_learning_rate(self, batch):
         for start_num_backprop in reversed(sorted(self.lr_schedule)):
             lr = self.lr_schedule[start_num_backprop]
-            if self.global_num_backpropped >= start_num_backprop:
+            if self.global_num_forwards >= start_num_backprop:
                 if self.backpropper.optimizer.param_groups[0]['lr'] is not lr:
                     self.set_learning_rate(lr)
                 break
