@@ -247,7 +247,7 @@ class RandomGradientAndSelectivityLoggingBackpropper(GradientAndSelectivityLoggi
 
     def _get_data_subset(self, batch, fraction):
         subset_size = int(fraction * len(batch))
-        subset = np.random.choice(batch, subset_size)
+        subset = [batch[i] for i in sorted(random.sample(range(len(batch)), subset_size))]
         chosen_losses = [exp.loss for exp in subset]
         return self._get_data_tensor(subset), self._get_targets_tensor(subset)
 
