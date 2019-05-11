@@ -53,6 +53,7 @@ class Trainer(object):
         self.forward_pass_handlers = []
         self.backward_pass_handlers = []
         self.global_num_backpropped = 0
+        self.global_num_forwards = 0
         self.max_num_backprops = max_num_backprops
         self.on_backward_pass(self.update_num_backpropped)
         if lr_schedule:
@@ -61,6 +62,7 @@ class Trainer(object):
 
     def update_num_backpropped(self, batch):
         self.global_num_backpropped += sum([1 for e in batch if e.select])
+        self.global_num_forwards += len(batch)
 
     def on_forward_pass(self, handler):
         self.forward_pass_handlers.append(handler)
