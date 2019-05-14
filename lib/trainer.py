@@ -99,7 +99,7 @@ class Trainer(object):
         if self.forwardlr:
             counter = self.global_num_forwards
         else:
-            counter = self.global_num_backprops
+            counter = self.global_num_backpropped
         return counter
 
     def update_learning_rate(self, batch):
