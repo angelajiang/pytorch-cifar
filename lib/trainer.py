@@ -42,7 +42,8 @@ class Trainer(object):
                  batch_size,
                  loss_fn,
                  max_num_backprops=float('inf'),
-                 lr_schedule=None):
+                 lr_schedule=None,
+                 forwardlr=False):
         self.device = device
         self.net = net
         self.selector = selector
@@ -54,6 +55,7 @@ class Trainer(object):
         self.backward_pass_handlers = []
         self.global_num_backpropped = 0
         self.global_num_forwards = 0
+        self.forwardlr = forwardlr
         self.max_num_backprops = max_num_backprops
         self.on_backward_pass(self.update_num_backpropped)
         if lr_schedule:
@@ -92,17 +94,25 @@ class Trainer(object):
         for param_group in self.backpropper.optimizer.param_groups:
             param_group['lr'] = lr
 
+    @property
+    def counter(self):
+        if self.forwardlr:
+            counter = self.global_num_forwards
+        else:
+            counter = self.global_num_backprops
+        return counter
+
     def update_learning_rate(self, batch):
         for start_num_backprop in reversed(sorted(self.lr_schedule)):
             lr = self.lr_schedule[start_num_backprop]
-            if self.global_num_forwards >= start_num_backprop:
+            if self.counter >= start_num_backprop:
                 if self.backpropper.optimizer.param_groups[0]['lr'] is not lr:
                     self.set_learning_rate(lr)
                 break
 
     @property
     def stopped(self):
-        return self.global_num_backpropped >= self.max_num_backprops
+        return self.counter >= self.max_num_backprops
 
     def train(self, trainloader):
         for i, batch in enumerate(trainloader):

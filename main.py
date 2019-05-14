@@ -106,6 +106,8 @@ def set_experiment_default_args(parser):
                         help='Maximum sampling rate for sampling strategy')
     parser.add_argument('--selectivity-scalar', type=float, default=1,
                         help='scale the select probability')
+    parser.add_argument('--forwardlr', dest='forwardlr', action='store_true',
+                        help='LR schedule based on forward passes')
 
     # Logging and checkpointing interval
     parser.add_argument('--no-logging', type=bool, default=False, help='prevent logging')
@@ -272,6 +274,7 @@ def print_config(args):
     print("config sampling-max {}".format(args.sampling_max))
     print("config prob_pow {}".format(args.prob_pow))
     print("config max_history_len {}".format(args.max_history_len))
+    print("config forwardlr {}".format(args.forwardlr))
 
 def main(args):
 
@@ -540,7 +543,8 @@ def main(args):
                                       args.batch_size,
                                       loss_fn,
                                       max_num_backprops=args.max_num_backprops,
-                                      lr_schedule=args.lr_sched)
+                                      lr_schedule=args.lr_sched,
+                                      forwardlr=args.forwardlr)
 
     logger = lib.loggers.Logger(log_interval = args.log_interval,
                                 epoch=start_epoch,

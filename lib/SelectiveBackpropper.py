@@ -12,7 +12,8 @@ class SelectiveBackpropper:
                  sampling_min,
                  batch_size,
                  lr_sched,
-                 num_classes):
+                 num_classes,
+                 forwardlr):
 
         ## Hardcoded params
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -47,11 +48,12 @@ class SelectiveBackpropper:
                                                      sb_start_epoch,
                                                      epoch=start_epoch)
         self.trainer = trainer.Trainer(device,
-                             model,
-                             self.selector,
-                             self.backpropper,
-                             batch_size,
-                             lr_schedule=lr_sched)
+                                       model,
+                                       self.selector,
+                                       self.backpropper,
+                                       batch_size,
+                                       lr_schedule=lr_sched,
+                                       forwardlr=forwardlr)
 
         self.logger = loggers.Logger(log_interval = log_interval,
                                 epoch=start_epoch,
