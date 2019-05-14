@@ -55,7 +55,7 @@ class SelectiveBackpropper:
                                        self.selector,
                                        self.backpropper,
                                        batch_size,
-                                       loss_fn
+                                       loss_fn,
                                        lr_schedule=lr_sched,
                                        forwardlr=forwardlr)
 
