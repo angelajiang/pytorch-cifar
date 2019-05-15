@@ -7,6 +7,7 @@ import subprocess
 def set_experiment_default_args(parser):
     parser.add_argument('--expname', '-e', default="tmp", type=str, help='experiment name')
     parser.add_argument('--strategy', '-s', default="baseline", type=str, help='baseline, sb')
+    parser.add_argument('--prob-strategy', '-p', default="relative-cubed", type=str, help='relative-cubed, relative-fourth')
     parser.add_argument('--dataset', '-d', default="cifar10", type=str, help='mnist, cifar10, svhn, imagenet')
     parser.add_argument('--network', '-n', default="mobilenetv2", type=str, help='network architecture')
     parser.add_argument('--gradual', '-g', dest='gradual', action='store_true',
@@ -163,7 +164,7 @@ def main(args):
                                                     args.kath_strategy,
                                                     kath_sample_size)
         cmd = "python main.py "
-        cmd += "--prob-strategy=relative-cubed "
+        cmd += "--prob-strategy={} ".format(args.prob_strategy)
         cmd += "--max-history-len={} ".format(max_history_length)
         cmd += "--dataset={} ".format(args.dataset)
         cmd += "--prob-loss-fn={} ".format("cross")
