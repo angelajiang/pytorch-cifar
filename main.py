@@ -57,6 +57,8 @@ def set_experiment_default_args(parser):
                         help='turn on data augmentation for CIFAR10')
     parser.add_argument('--kath', '-k', dest='kath', action='store_true',
                         help='Use Katharopoulous18 mode')
+    parser.add_argument('--kath-strategy', default='reweighted', type=str,
+                        help='Katharopoulous18 mode in {biased, reweighted, baseline}')
     parser.add_argument('--batch-size', type=int, default=128, metavar='N',
                         help='input batch size for training (default: 1)')
     parser.add_argument('--test-batch-size', type=int, default=100, metavar='N',
@@ -275,6 +277,8 @@ def print_config(args):
     print("config prob_pow {}".format(args.prob_pow))
     print("config max_history_len {}".format(args.max_history_len))
     print("config forwardlr {}".format(args.forwardlr))
+    print("config kath {}".format(args.kath))
+    print("config kath_strategy {}".format(args.kath_strategy))
 
 def main(args):
 
@@ -504,10 +508,16 @@ def main(args):
 
     if args.kath:
         selector = None
-        final_backpropper = lib.backproppers.ReweightedBackpropper(device,
-                                                                   dataset.model,
-                                                                   optimizer,
-                                                                   loss_fn)
+        if args.kath_strategy == "reweighted":
+            final_backpropper = lib.backproppers.ReweightedBackpropper(device,
+                                                                       dataset.model,
+                                                                       optimizer,
+                                                                       loss_fn)
+        else:
+            final_backpropper = lib.backproppers.BaselineBackpropper(device,
+                                                                     dataset.model,
+                                                                     optimizer,
+                                                                     loss_fn)
         backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.BaselineBackpropper(device,
                                                                                               dataset.model,
                                                                                               optimizer,
@@ -515,14 +525,24 @@ def main(args):
                                                          final_backpropper,
                                                          args.sb_start_epoch,
                                                          epoch=start_epoch)
-        trainer = lib.trainer.KathTrainer(device,
-                                          dataset.model,
-                                          backpropper,
-                                          args.batch_size,
-                                          args.sample_size,
-                                          loss_fn,
-                                          max_num_backprops=args.max_num_backprops,
-                                          lr_schedule=args.lr_sched)
+        if args.kath_strategy == "baseline":
+            trainer = lib.trainer.KathBaselineTrainer(device,
+                                                      dataset.model,
+                                                      backpropper,
+                                                      args.batch_size,
+                                                      args.sample_size,
+                                                      loss_fn,
+                                                      max_num_backprops=args.max_num_backprops,
+                                                      lr_schedule=args.lr_sched)
+        else:
+            trainer = lib.trainer.KathTrainer(device,
+                                              dataset.model,
+                                              backpropper,
+                                              args.batch_size,
+                                              args.sample_size,
+                                              loss_fn,
+                                              max_num_backprops=args.max_num_backprops,
+                                              lr_schedule=args.lr_sched)
     else:
         selector = lib.selectors.PrimedSelector(lib.selectors.BaselineSelector(),
                                                 final_selector,

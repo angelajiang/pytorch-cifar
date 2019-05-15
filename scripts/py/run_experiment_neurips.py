@@ -19,6 +19,9 @@ def set_experiment_default_args(parser):
     parser.add_argument('--num-trials', default=1, type=int, help='number of trials')
     parser.add_argument('--src-dir', default="./", type=str, help='/path/to/pytorch-cifar')
     parser.add_argument('--dst-dir', default="/proj/BigLearning/ahjiang/output/", type=str, help='/path/to/dst/dir')
+
+    parser.add_argument('--kath', dest='kath', action='store_true', help='Use Katharopoulos18')
+    parser.add_argument('--kath-strategy', default="reweighted", type=str, help='Katharopoulos18')
     return parser
 
 def get_lr_sched_path(src_dir, dataset, gradual, fast):
@@ -47,13 +50,14 @@ def get_sampling_min(strategy):
         print("{} not a strategy".format(strategy))
         exit()
 
-
 def get_batch_size():
     return 128
 
+def get_kath_sample_size():
+    return 1028
+
 def get_decay():
     return 0.0005
-
 
 class Seeder():
     def __init__(self):
@@ -64,7 +68,7 @@ class Seeder():
         return self.seed
 
 def get_start_epoch():
-    return 1337
+    return 1
 
 def get_max_history_length():
     return 1024
@@ -77,7 +81,23 @@ def get_output_dirs(dst_dir):
         os.mkdir(pickles_dir)
     return dst_dir, pickles_dir
 
-def get_output_files(sb_strategy, dataset, net, sampling_min, batch_size, max_history_length, decay, trial, seed):
+def get_output_files(sb_strategy,
+                     dataset,
+                     net,
+                     sampling_min,
+                     batch_size,
+                     max_history_length,
+                     decay,
+                     trial,
+                     seed,
+                     kath,
+                     kath_strategy,
+                     kath_sample_size):
+
+    if kath:
+        sb_strategy = "kath-{}".format(kath_strategy)
+        max_history_length = kath_sample_size
+
     output_file = "{}_{}_{}_{}_{}_{}_{}_trial{}_seed{}_v2".format(sb_strategy,
                                                                dataset,
                                                                net,
@@ -126,6 +146,7 @@ def main(args):
     output_dir, pickles_dir = get_experiment_dirs(args.dst_dir, args.dataset, args.expname)
     max_history_length = get_max_history_length()
     sb_strategy = get_sb_strategy()
+    kath_sample_size = get_kath_sample_size()
 
     for trial in range(1, args.num_trials+1):
         seed = seeder.get_seed()
@@ -137,7 +158,10 @@ def main(args):
                                                     max_history_length,
                                                     decay,
                                                     trial,
-                                                    seed)
+                                                    seed,
+                                                    args.kath,
+                                                    args.kath_strategy,
+                                                    kath_sample_size)
         cmd = "python main.py "
         cmd += "--prob-strategy=relative-cubed "
         cmd += "--max-history-len={} ".format(max_history_length)
@@ -154,6 +178,12 @@ def main(args):
         cmd += "--sampling-min={} ".format(sampling_min)
         cmd += "--seed={} ".format(seed)
         cmd += "--lr-sched={} ".format(lr_sched_path)
+
+        if args.kath:
+            cmd += "--kath "
+            cmd += "--kath-strategy={} ".format(args.kath_strategy)
+            cmd += "--sample-size={} ".format(kath_sample_size)
+
         cmd += "--augment"
 
         output_path = os.path.join(output_dir, output_file)
@@ -168,9 +198,6 @@ def main(args):
         cmd_list = cmd.split(" ")
         with open(output_path, "w+") as f:
             subprocess.call(cmd_list, stdout=f)
-
-
-
 
 
 if __name__ == '__main__':

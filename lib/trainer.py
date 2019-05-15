@@ -165,8 +165,7 @@ class Trainer(object):
             return backprop_batch
         return None
 
-
-class KathTrainer(object):
+class KathTrainer(Trainer):
     def __init__(self,
                  device,
                  net,
@@ -175,67 +174,19 @@ class KathTrainer(object):
                  pool_size,
                  loss_fn,
                  max_num_backprops=float('inf'),
-                 lr_schedule=None):
-        self.device = device
-        self.net = net
-        self.backpropper = backpropper
-        self.loss_fn = loss_fn
-        self.batch_size = batch_size
-        self.backprop_queue = []
-        self.forward_pass_handlers = []
-        self.backward_pass_handlers = []
+                 lr_schedule=None,
+                 forwardlr=False):
+        super(KathTrainer, self).__init__(device,
+                                          net,
+                                          None,
+                                          backpropper,
+                                          batch_size,
+                                          loss_fn,
+                                          max_num_backprops=float('inf'),
+                                          lr_schedule=None,
+                                          forwardlr=False)
         self.pool = []
         self.pool_size = pool_size
-        self.global_num_backpropped = 0
-        self.max_num_backprops = max_num_backprops
-        self.on_backward_pass(self.update_num_backpropped)
-        if lr_schedule:
-            self.load_lr_schedule(lr_schedule)
-            self.on_backward_pass(self.update_learning_rate)
-
-
-    def update_num_backpropped(self, batch):
-        self.global_num_backpropped += sum([1 for e in batch if e.select])
-
-    def on_forward_pass(self, handler):
-        self.forward_pass_handlers.append(handler)
-
-    def on_backward_pass(self, handler):
-        self.backward_pass_handlers.append(handler)
-
-    def emit_forward_pass(self, batch):
-        for handler in self.forward_pass_handlers:
-            handler(batch)
-
-    def emit_backward_pass(self, batch):
-        for handler in self.backward_pass_handlers:
-            handler(batch)
-
-    # TODO move to a LRScheduler object or to backpropper
-    def load_lr_schedule(self, schedule_path):
-        with open(schedule_path, "r") as f:
-            data = json.load(f)
-        self.lr_schedule = {}
-        for k in data:
-            self.lr_schedule[int(k)] = data[k]
-
-    def set_learning_rate(self, lr):
-        print("Setting learning rate to {} at {} backprops".format(lr,
-                                                                   self.global_num_backpropped))
-        for param_group in self.backpropper.optimizer.param_groups:
-            param_group['lr'] = lr
-
-    def update_learning_rate(self, batch):
-        for start_num_backprop in reversed(sorted(self.lr_schedule)):
-            lr = self.lr_schedule[start_num_backprop]
-            if self.global_num_backpropped >= start_num_backprop:
-                if self.backpropper.optimizer.param_groups[0]['lr'] is not lr:
-                    self.set_learning_rate(lr)
-                break
-
-    @property
-    def stopped(self):
-        return self.global_num_backpropped >= self.max_num_backprops
 
     def train(self, trainloader):
         for i, batch in enumerate(trainloader):
@@ -251,12 +202,15 @@ class KathTrainer(object):
         annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
         self.emit_backward_pass(annotated_backward_batch)
 
-    def get_batch(self, pool):
-        # Calculate probs and add to example
+    def get_probabilities(self, pool):
         loss_sum = sum([example.loss.item() for example in pool])
-        for example in pool:
-            example.select_probability = example.loss.item() / loss_sum
         probs = [example.loss.item() / loss_sum for example in pool]
+        return probs
+
+    def get_batch(self, pool):
+        probs = self.get_probabilities(pool)
+        for example, prob in zip(pool, probs):
+            example.select_probability = prob
 
         # Sample batch_size with replacement
         chosen_examples = np.random.choice(pool, self.batch_size, p=probs)
@@ -279,5 +233,32 @@ class KathTrainer(object):
 
         examples = zip(losses, outputs, softmax_outputs, targets, data, image_ids)
         return [Example(*example) for example in examples]
+
+class KathBaselineTrainer(KathTrainer):
+    def __init__(self,
+                 device,
+                 net,
+                 backpropper,
+                 batch_size,
+                 pool_size,
+                 loss_fn,
+                 max_num_backprops=float('inf'),
+                 lr_schedule=None,
+                 forwardlr=False):
+
+        super(KathBaselineTrainer, self).__init__(device,
+                                                  net,
+                                                  backpropper,
+                                                  batch_size,
+                                                  pool_size,
+                                                  loss_fn,
+                                                  max_num_backprops=float('inf'),
+                                                  lr_schedule=None,
+                                                  forwardlr=False)
+
+    def get_probabilities(self, pool):
+        loss_sum = sum([example.loss.item() for example in pool])
+        probs = [1. / len(pool) for example in pool]
+        return probs
 
 
