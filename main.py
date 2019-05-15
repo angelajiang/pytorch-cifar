@@ -442,7 +442,7 @@ def main(args):
                                                                             prob_loss_fn,
                                                                             args.sampling_min,
                                                                             args.max_history_len)
-    elif args.prob_strategy == "relative-fourth":
+    elif args.prob_strategy == "relative-sixth":
         probability_calculator = lib.selectors.RelativeSixthProbabilityCalculator(device,
                                                                                    prob_loss_fn,
                                                                                    args.sampling_min,
