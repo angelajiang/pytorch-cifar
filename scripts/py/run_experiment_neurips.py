@@ -54,7 +54,7 @@ def get_batch_size():
     return 128
 
 def get_kath_sample_size():
-    return 1028
+    return 1024
 
 def get_decay():
     return 0.0005
