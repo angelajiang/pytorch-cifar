@@ -182,9 +182,9 @@ class KathTrainer(Trainer):
                                           backpropper,
                                           batch_size,
                                           loss_fn,
-                                          max_num_backprops=float('inf'),
-                                          lr_schedule=None,
-                                          forwardlr=False)
+                                          max_num_backprops,
+                                          lr_schedule,
+                                          forwardlr)
         self.pool = []
         self.pool_size = pool_size
 
