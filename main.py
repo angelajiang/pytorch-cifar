@@ -313,6 +313,8 @@ def main(args):
         net = ShuffleNetG2()
     elif args.net == "senet":
         net = SENet18()
+    else:
+        net = ResNet18()
     net = net.to(device)
 
     # Device case
