@@ -12,6 +12,8 @@ def set_experiment_default_args(parser):
     parser.add_argument('--network', '-n', default="mobilenetv2", type=str, help='network architecture')
     parser.add_argument('--gradual', '-g', dest='gradual', action='store_true',
                         help='is learning rate gradual')
+    parser.add_argument('--nolog', '-nl', dest='nolog', action='store_true',
+                        help='turn off extra logging')
     parser.add_argument('--fast', '-f', dest='fast', action='store_true',
                         help='is learning rate accelerated')
     parser.add_argument('--forwardlr', dest='forwardlr', action='store_true',
@@ -132,6 +134,9 @@ def get_experiment_dirs(dst_dir, dataset, expname):
 def get_sb_strategy():
     return "sampling"
 
+def get_imagenet_datadir():
+    return "/proj/BigLearning/ahjiang/datasets/imagenet-data"
+
 def main(args):
     seeder = Seeder()
     src_dir = os.path.abspath(args.src_dir)
@@ -184,6 +189,12 @@ def main(args):
             cmd += "--kath "
             cmd += "--kath-strategy={} ".format(args.kath_strategy)
             cmd += "--sample-size={} ".format(kath_sample_size)
+
+        if args.nolog:
+            cmd += "--no-logging "
+
+        if args.dataset == "imagenet":
+            cmd += "--datadir={} ".format(get_imagenet_datadir())
 
         cmd += "--augment"
 

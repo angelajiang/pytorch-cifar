@@ -112,7 +112,8 @@ def set_experiment_default_args(parser):
                         help='LR schedule based on forward passes')
 
     # Logging and checkpointing interval
-    parser.add_argument('--no-logging', type=bool, default=False, help='prevent logging')
+    parser.add_argument('--no-logging', dest='no_logging', action='store_true',
+                        help='turn off unnecessary logging')
     parser.add_argument('--imageids-log-interval', type=int, default=10,
                         help='How often to write image ids to file (in epochs)')
     parser.add_argument('--losses-log-interval', type=int, default=10,
@@ -586,15 +587,15 @@ def main(args):
                                                        args.losses_log_interval)
     probability_by_image_logger = lib.loggers.ProbabilityByImageLogger(args.pickle_dir,
                                                                        args.pickle_prefix)
+
+    trainer.on_forward_pass(logger.handle_forward_batch)
+    trainer.on_backward_pass(logger.handle_backward_batch)
     if not args.no_logging:
-        trainer.on_forward_pass(logger.handle_forward_batch)
-        trainer.on_backward_pass(logger.handle_backward_batch)
         trainer.on_backward_pass(image_id_hist_logger.handle_backward_batch)
         trainer.on_backward_pass(loss_hist_logger.handle_backward_batch)
         trainer.on_backward_pass(probability_by_image_logger.handle_backward_batch)
+
     stopped = False
-
-
     epoch = start_epoch
 
     while True:
@@ -614,9 +615,10 @@ def main(args):
             break
 
         logger.next_epoch()
-        image_id_hist_logger.next_epoch()
-        loss_hist_logger.next_epoch()
-        probability_by_image_logger.next_epoch()
+        if not args.no_logging:
+            image_id_hist_logger.next_epoch()
+            loss_hist_logger.next_epoch()
+            probability_by_image_logger.next_epoch()
         if selector:
             selector.next_epoch()
         backpropper.next_epoch()
