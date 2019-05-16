@@ -1,5 +1,4 @@
 import torch
-from timeit import default_timer as timer
 import torch.nn as nn
 
 class PrimedBackpropper(object):
@@ -64,10 +63,7 @@ class BaselineBackpropper(object):
 
         # Run forward pass
         # Necessary if the network has been updated between last forward pass
-        start = timer()
         outputs = self.net(data) 
-        end = timer()
-        print("forwards {}".format(end - start))
         losses = self.loss_fn(reduce=False)(outputs, targets)
 
         # Add for logging selected loss
@@ -79,14 +75,8 @@ class BaselineBackpropper(object):
 
         # Run backwards pass
         self.optimizer.zero_grad()
-        start = timer()
         loss.backward()
-        end = timer()
-        print("backwards {}".format(end - start))
-        start = timer()
         self.optimizer.step()
-        end = timer()
-        print("update {}".format(end - start))
 
         print("total_norm {}".format(self.total_norm))
 
