@@ -10,10 +10,14 @@ def set_experiment_default_args(parser):
     parser.add_argument('--prob-strategy', '-p', default="relative-cubed", type=str, help='relative-cubed, relative-fourth')
     parser.add_argument('--dataset', '-d', default="cifar10", type=str, help='mnist, cifar10, svhn, imagenet')
     parser.add_argument('--network', '-n', default="mobilenetv2", type=str, help='network architecture')
-    parser.add_argument('--gradual', '-g', dest='gradual', action='store_true',
-                        help='is learning rate gradual')
     parser.add_argument('--nolog', '-nl', dest='nolog', action='store_true',
                         help='turn off extra logging')
+
+    parser.add_argument('--static-lr', '-slr', default=None, type=float, help='Overrides LR sched opts')
+
+    # LR sched opts
+    parser.add_argument('--gradual', '-g', dest='gradual', action='store_true',
+                        help='is learning rate gradual')
     parser.add_argument('--fast', '-f', dest='fast', action='store_true',
                         help='is learning rate accelerated')
     parser.add_argument('--forwardlr', dest='forwardlr', action='store_true',
@@ -183,7 +187,10 @@ def main(args):
         cmd += "--pickle-prefix={} ".format(pickle_file)
         cmd += "--sampling-min={} ".format(sampling_min)
         cmd += "--seed={} ".format(seed)
-        cmd += "--lr-sched={} ".format(lr_sched_path)
+        if args.static_lr is None:
+            cmd += "--lr-sched={} ".format(lr_sched_path)
+        else:
+            cmd += "--lr={} ".format(args.static_lr)
 
         if args.kath:
             cmd += "--kath "
