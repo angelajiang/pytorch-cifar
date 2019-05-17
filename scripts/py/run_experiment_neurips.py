@@ -24,6 +24,7 @@ def set_experiment_default_args(parser):
                         help='learning rate schedule is based on forward props')
 
     parser.add_argument('--num-trials', default=1, type=int, help='number of trials')
+    parser.add_argument('--start-epoch', "-se", default=1, type=int, help='SB start epoch')
     parser.add_argument('--src-dir', default="./", type=str, help='/path/to/pytorch-cifar')
     parser.add_argument('--dst-dir', default="/proj/BigLearning/ahjiang/output/", type=str, help='/path/to/dst/dir')
 
@@ -73,9 +74,6 @@ class Seeder():
     def get_seed(self):
         self.seed += 1
         return self.seed
-
-def get_start_epoch():
-    return 1
 
 def get_max_history_length():
     return 1024
@@ -152,7 +150,6 @@ def main(args):
     sampling_min = get_sampling_min(args.strategy)
     batch_size = get_batch_size()
     decay = get_decay()
-    start_epoch = get_start_epoch()
     output_dir, pickles_dir = get_experiment_dirs(args.dst_dir, args.dataset, args.expname)
     max_history_length = get_max_history_length()
     sb_strategy = get_sb_strategy()
@@ -177,7 +174,7 @@ def main(args):
         cmd += "--max-history-len={} ".format(max_history_length)
         cmd += "--dataset={} ".format(args.dataset)
         cmd += "--prob-loss-fn={} ".format("cross")
-        cmd += "--sb-start-epoch={} ".format(start_epoch)
+        cmd += "--sb-start-epoch={} ".format(args.start_epoch)
         cmd += "--sb-strategy={} ".format(sb_strategy)
         cmd += "--net={} ".format(args.network)
         cmd += "--batch-size={} ".format(batch_size)
