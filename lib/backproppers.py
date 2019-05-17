@@ -1,4 +1,5 @@
 import torch
+import time
 from timeit import default_timer as timer
 import torch.nn as nn
 
@@ -64,9 +65,10 @@ class BaselineBackpropper(object):
 
         # Run forward pass
         # Necessary if the network has been updated between last forward pass
-        start = timer()
+        start = time.time()
         outputs = self.net(data) 
-        end = timer()
+        torch.cuda.synchronize()
+        end = time.time()
         print("forwards {}".format(end - start))
         losses = self.loss_fn(reduce=False)(outputs, targets)
 
@@ -79,13 +81,15 @@ class BaselineBackpropper(object):
 
         # Run backwards pass
         self.optimizer.zero_grad()
-        start = timer()
+        start = time.time()
         loss.backward()
-        end = timer()
+        torch.cuda.synchronize()
+        end = time.time()
         print("backwards {}".format(end - start))
-        start = timer()
+        start = time.time()
         self.optimizer.step()
-        end = timer()
+        torch.cuda.synchronize()
+        end = time.time()
         print("update {}".format(end - start))
 
         print("total_norm {}".format(self.total_norm))

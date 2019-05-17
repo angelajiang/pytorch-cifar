@@ -14,7 +14,7 @@ def get_start_epoch():
     return 1000
 
 def get_max_num_backprops():
-    return 100000
+    return 10000
 
 def get_output_files(network, batch_size):
     output_file = "asymmetry_{}_{}".format(network, batch_size)
@@ -33,7 +33,7 @@ def main(args):
     output_dir = get_experiment_dirs(args.dst_dir, args.expname)
 
     networks = ["resnet", "mobilenetv2"]
-    batch_sizes = [32, 64, 128]
+    batch_sizes = [1, 32, 64, 128]
 
     for network in networks:
         for batch_size in batch_sizes:
@@ -57,7 +57,7 @@ def main(args):
 
 if __name__ == '__main__':
 
-    # git revert d9c2c017bd8eaaa2e97d5699c289b7dd04c48293
+    # git revert d10c2c017bd8eaaa2e97d5699c289b7dd04c48293
     # python scripts/py/benchmark_asymmetry_neurips.py -e 190516_asymmetry_titanv
 
     parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
