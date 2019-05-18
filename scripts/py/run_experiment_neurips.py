@@ -66,7 +66,7 @@ def get_batch_size():
     return 128
 
 def get_static_sample_size(batch_size):
-    return batch_size * 8
+    return batch_size * 4
 
 def get_decay():
     return 0.0005
