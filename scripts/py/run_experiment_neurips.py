@@ -187,10 +187,10 @@ def main(args):
         cmd += "--sampling-min={} ".format(sampling_min)
         cmd += "--seed={} ".format(seed)
         if args.static_lr is None:
-            if args.gradual or args.fast:
-                print("[Warning] Using StaticLR, overridding -g, -f")
             cmd += "--lr-sched={} ".format(lr_sched_path)
         else:
+            if args.gradual or args.fast:
+                print("[Warning] Using StaticLR, overridding -g, -f")
             cmd += "--lr={} ".format(args.static_lr)
 
         if args.nolog:
