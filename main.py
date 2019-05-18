@@ -373,7 +373,7 @@ def main(args):
     elif args.dataset == "svhn":
         dataset = lib.datasets.SVHN(net,
                                     args.test_batch_size,
-                                    50000,
+                                    25000,
                                     args.augment)
     elif args.dataset == "imagenet":
         traindir = os.path.join(args.datadir, "train")
@@ -382,7 +382,7 @@ def main(args):
                                         args.test_batch_size,
                                         traindir,
                                         valdir,
-                                        50000)
+                                        25000)
     else:
         print("Only cifar10, mnist, svhn and imagenet are implemented")
         exit()
