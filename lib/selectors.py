@@ -97,7 +97,6 @@ class RandomKSelector(object):
                 forward_pass_batch[i].select = False
         return forward_pass_batch
 
-
 class SamplingSelector(object):
     def __init__(self, probability_calculator):
         self.get_select_probability = probability_calculator.get_probability
@@ -111,7 +110,8 @@ class SamplingSelector(object):
         for example in forward_pass_batch:
             prob = self.get_select_probability(example)
             example.select_probability = prob
-            example.select = self.select(example)
+            example.select = True #self.select(example)
+            example.sb_select = self.select(example)
         return forward_pass_batch
 
 class DeterministicSamplingSelector(object):
