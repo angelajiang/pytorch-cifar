@@ -12,7 +12,10 @@ def set_experiment_default_args(parser):
     parser.add_argument('--network', '-n', default="mobilenetv2", type=str, help='network architecture')
     parser.add_argument('--nolog', '-nl', dest='nolog', action='store_true',
                         help='turn off extra logging')
+    parser.add_argument('--selector', dest='selector', default="sampling",
+                        help='Select strategyy from {sampling, deterministic, topk}')
 
+    # Mutually exclusive with LR sched opts
     parser.add_argument('--static-lr', '-slr', default=None, type=float, help='Overrides LR sched opts')
 
     # LR sched opts
@@ -30,6 +33,7 @@ def set_experiment_default_args(parser):
 
     parser.add_argument('--kath', dest='kath', action='store_true', help='Use Katharopoulos18')
     parser.add_argument('--kath-strategy', default="reweighted", type=str, help='Katharopoulos18')
+
     return parser
 
 def get_lr_sched_path(src_dir, dataset, gradual, fast):
@@ -61,8 +65,8 @@ def get_sampling_min(strategy):
 def get_batch_size():
     return 128
 
-def get_kath_sample_size():
-    return 1024
+def get_static_sample_size(batch_size):
+    return batch_size * 8
 
 def get_decay():
     return 0.0005
@@ -86,7 +90,7 @@ def get_output_dirs(dst_dir):
         os.mkdir(pickles_dir)
     return dst_dir, pickles_dir
 
-def get_output_files(sb_strategy,
+def get_output_files(sb_selector,
                      dataset,
                      net,
                      sampling_min,
@@ -97,13 +101,15 @@ def get_output_files(sb_strategy,
                      seed,
                      kath,
                      kath_strategy,
-                     kath_sample_size):
+                     static_sample_size):
 
     if kath:
-        sb_strategy = "kath-{}".format(kath_strategy)
-        max_history_length = kath_sample_size
+        sb_selector = "kath-{}".format(kath_strategy)
+        max_history_length = static_sample_size
+    if sb_selector == "topk":
+        max_history_length = static_sample_size
 
-    output_file = "{}_{}_{}_{}_{}_{}_{}_trial{}_seed{}_v2".format(sb_strategy,
+    output_file = "{}_{}_{}_{}_{}_{}_{}_trial{}_seed{}_v2".format(sb_selector,
                                                                dataset,
                                                                net,
                                                                sampling_min,
@@ -113,7 +119,7 @@ def get_output_files(sb_strategy,
                                                                trial,
                                                                seed)
 
-    pickle_file = "{}_{}_{}_{}_{}_{}_{}_trial{}_seed{}".format(sb_strategy,
+    pickle_file = "{}_{}_{}_{}_{}_{}_{}_trial{}_seed{}".format(sb_selector,
                                                                dataset,
                                                                net,
                                                                sampling_min,
@@ -133,9 +139,6 @@ def get_experiment_dirs(dst_dir, dataset, expname):
         os.mkdir(pickles_dir)
     return output_dir, pickles_dir
 
-def get_sb_strategy():
-    return "sampling"
-
 def get_imagenet_datadir():
     return "/proj/BigLearning/ahjiang/datasets/imagenet-data"
 
@@ -148,16 +151,15 @@ def main(args):
         exit()
     max_num_backprops = get_max_num_backprops(lr_sched_path)
     sampling_min = get_sampling_min(args.strategy)
-    batch_size = get_batch_size()
     decay = get_decay()
     output_dir, pickles_dir = get_experiment_dirs(args.dst_dir, args.dataset, args.expname)
     max_history_length = get_max_history_length()
-    sb_strategy = get_sb_strategy()
-    kath_sample_size = get_kath_sample_size()
+    batch_size = get_batch_size()
+    static_sample_size = get_static_sample_size(batch_size)
 
     for trial in range(1, args.num_trials+1):
         seed = seeder.get_seed()
-        output_file, pickle_file = get_output_files(sb_strategy,
+        output_file, pickle_file = get_output_files(args.selector,
                                                     args.dataset,
                                                     args.network,
                                                     sampling_min,
@@ -168,14 +170,14 @@ def main(args):
                                                     seed,
                                                     args.kath,
                                                     args.kath_strategy,
-                                                    kath_sample_size)
+                                                    static_sample_size)
         cmd = "python main.py "
         cmd += "--prob-strategy={} ".format(args.prob_strategy)
         cmd += "--max-history-len={} ".format(max_history_length)
         cmd += "--dataset={} ".format(args.dataset)
         cmd += "--prob-loss-fn={} ".format("cross")
         cmd += "--sb-start-epoch={} ".format(args.start_epoch)
-        cmd += "--sb-strategy={} ".format(sb_strategy)
+        cmd += "--sb-strategy={} ".format(args.selector)
         cmd += "--net={} ".format(args.network)
         cmd += "--batch-size={} ".format(batch_size)
         cmd += "--decay={} ".format(decay)
@@ -185,20 +187,27 @@ def main(args):
         cmd += "--sampling-min={} ".format(sampling_min)
         cmd += "--seed={} ".format(seed)
         if args.static_lr is None:
+            if args.gradual or args.fast:
+                print("[Warning] Using StaticLR, overridding -g, -f")
             cmd += "--lr-sched={} ".format(lr_sched_path)
         else:
             cmd += "--lr={} ".format(args.static_lr)
-
-        if args.kath:
-            cmd += "--kath "
-            cmd += "--kath-strategy={} ".format(args.kath_strategy)
-            cmd += "--sample-size={} ".format(kath_sample_size)
 
         if args.nolog:
             cmd += "--no-logging "
 
         if args.dataset == "imagenet":
             cmd += "--datadir={} ".format(get_imagenet_datadir())
+
+        if args.selector == "topk":
+            cmd += "--sample-size={} ".format(static_sample_size)
+
+        if args.kath:
+            if args.selector == "topk":
+                print("[Warning] Running Kath, overridding --selector")
+            cmd += "--kath "
+            cmd += "--kath-strategy={} ".format(args.kath_strategy)
+            cmd += "--sample-size={} ".format(static_sample_size)
 
         cmd += "--augment"
 
