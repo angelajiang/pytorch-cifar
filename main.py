@@ -382,7 +382,7 @@ def main(args):
                                         args.test_batch_size,
                                         traindir,
                                         valdir,
-                                        25000)
+                                        100000)
     else:
         print("Only cifar10, mnist, svhn and imagenet are implemented")
         exit()
