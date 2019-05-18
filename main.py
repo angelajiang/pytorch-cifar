@@ -475,12 +475,6 @@ def main(args):
                                                                  dataset.model,
                                                                  optimizer,
                                                                  loss_fn)
-    elif args.sb_strategy == "sb-everything":
-        final_selector = lib.selectors.SBEverythingSelector(probability_calculator)
-        final_backpropper = lib.backproppers.SamplingBackpropper(device,
-                                                                 dataset.model,
-                                                                 optimizer,
-                                                                 loss_fn)
     elif args.sb_strategy == "deterministic":
         final_selector = lib.selectors.DeterministicSamplingSelector(probability_calculator,
                                                                      initial_sum=1)
