@@ -91,7 +91,7 @@ def set_experiment_default_args(parser):
     parser.add_argument('--max-history-len', type=int, default=None, metavar='N',
                         help='History length for relative prob calculator')
 
-    parser.add_argument('--sb-start-epoch', type=int, default=0,
+    parser.add_argument('--sb-start-epoch', type=float, default=0,
                         help='epoch to start selective backprop')
     parser.add_argument('--pickle-dir', default="/tmp/",
                         help='directory for pickles')
@@ -442,6 +442,9 @@ def main(args):
         print("Error: Loss function cannot be {}".format(args.loss_fn))
         exit()
 
+
+    # Miscellaneous setup
+
     state = State(dataset.num_training_images,
                   args.pickle_dir,
                   args.pickle_prefix,
@@ -510,6 +513,9 @@ def main(args):
         print("Use prob-strategy in {vanilla, pscale, proportional}")
         exit()
 
+    num_images_to_prime = int(args.sb_start_epoch * dataset.num_training_images)
+    print("Priming with {} examples".format(num_images_to_prime))
+
     if args.sb_strategy == "sampling":
         final_selector = lib.selectors.SamplingSelector(probability_calculator)
         final_backpropper = lib.backproppers.SamplingBackpropper(device,
@@ -572,8 +578,7 @@ def main(args):
                                                                                               optimizer,
                                                                                               loss_fn),
                                                          final_backpropper,
-                                                         args.sb_start_epoch,
-                                                         epoch=start_epoch)
+                                                         num_images_to_prime)
         if args.kath_strategy == "baseline":
             trainer = lib.trainer.KathBaselineTrainer(device,
                                                       dataset.model,
@@ -595,16 +600,14 @@ def main(args):
     else:
         selector = lib.selectors.PrimedSelector(lib.selectors.BaselineSelector(),
                                                 final_selector,
-                                                args.sb_start_epoch,
-                                                epoch=start_epoch)
+                                                num_images_to_prime)
 
         backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.BaselineBackpropper(device,
                                                                                               dataset.model,
                                                                                               optimizer,
                                                                                               loss_fn),
                                                          final_backpropper,
-                                                         args.sb_start_epoch,
-                                                         epoch=start_epoch)
+                                                         num_images_to_prime)
         trainer = lib.trainer.Trainer(device,
                                       dataset.model,
                                       selector,
@@ -643,7 +646,7 @@ def main(args):
 
         if stopped: break
 
-        for dataset_split in dataset.get_dataset_splits():
+        for dataset_split in dataset.get_dataset_splits(first_split_size=num_images_to_prime):
             mini_test(args, dataset, device, epoch, state, logger, loss_fn)
             dataset_sampler = torch.utils.data.SubsetRandomSampler(dataset_split)
             trainloader = torch.utils.data.DataLoader(dataset.trainset,
@@ -653,6 +656,9 @@ def main(args):
 
             trainer.train(trainloader)
             logger.next_partition()
+            if selector:
+                selector.next_partition(len(dataset_split))
+            backpropper.next_partition(len(dataset_split))
             if trainer.stopped:
                 stopped = True
                 break
@@ -664,9 +670,7 @@ def main(args):
             image_id_hist_logger.next_epoch()
             loss_hist_logger.next_epoch()
             probability_by_image_logger.next_epoch()
-        if selector:
-            selector.next_epoch()
-        backpropper.next_epoch()
+
         epoch += 1
 
 if __name__ == '__main__':

@@ -3,21 +3,21 @@ import time
 import torch.nn as nn
 
 class PrimedBackpropper(object):
-    def __init__(self, initial, final, initial_epochs, epoch=0):
-        self.epoch = epoch
+    def __init__(self, initial, final, initial_num_images):
         self.initial = initial
         self.final = final
-        self.initial_epochs = initial_epochs
+        self.initial_num_images = initial_num_images
+        self.num_trained = 0
 
-    def next_epoch(self):
-        self.epoch += 1
+    def next_partition(self, partition_size):
+        self.num_trained += partition_size
 
     def get_backpropper(self):
-        return self.initial if self.epoch < self.initial_epochs else self.final
+        return self.initial if self.num_trained < self.initial_num_images else self.final
 
     @property
     def optimizer(self):
-        return self.initial.optimizer if self.epoch < self.initial_epochs else self.final.optimizer
+        return self.initial.optimizer if self.num_trained < self.initial_num_images else self.final.optimizer
 
     def backward_pass(self, *args, **kwargs):
         return self.get_backpropper().backward_pass(*args, **kwargs)
