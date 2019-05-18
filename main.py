@@ -128,6 +128,8 @@ def set_experiment_default_args(parser):
     parser.add_argument('--sample-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 1)')
 
+
+
     return parser
 
 
@@ -179,6 +181,42 @@ class State:
             print(self.target_confidences_pickle_file)
             pickle.dump(self.target_confidences, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+def mini_test(args,
+              dataset,
+              device,
+              epoch,
+              state,
+              logger,
+              loss_fn):
+
+    net = dataset.model
+    testloader = dataset.testloader
+
+    net.eval()
+    test_loss = 0
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+        for batch_idx, (inputs, targets, image_ids) in enumerate(testloader):
+            inputs, targets = inputs.to(device), targets.to(device)
+            outputs = net(inputs)
+
+            loss = loss_fn()(outputs, targets)
+
+            test_loss += loss.item()
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
+
+    test_loss /= len(testloader.dataset)
+    print('test_debug,{},{},{},{:.6f},{:.6f},{}'.format(
+                epoch,
+                logger.global_num_backpropped,
+                logger.global_num_skipped,
+                test_loss,
+                100.*correct/total,
+                time.time()))
 
 def test(args,
          dataset,
@@ -276,10 +314,10 @@ def print_config(args):
     print("config sampling-min {}".format(args.sampling_min))
     print("config sampling-max {}".format(args.sampling_max))
     print("config prob_pow {}".format(args.prob_pow))
-    print("config max_history_len {}".format(args.max_history_len))
+    print("config max-history_len {}".format(args.max_history_len))
     print("config forwardlr {}".format(args.forwardlr))
     print("config kath {}".format(args.kath))
-    print("config kath_strategy {}".format(args.kath_strategy))
+    print("config kath-strategy {}".format(args.kath_strategy))
 
 def main(args):
 
@@ -328,12 +366,14 @@ def main(args):
         dataset = lib.datasets.CIFAR10(net,
                                        args.test_batch_size,
                                        args.augment,
+                                       None,
                                        randomize_labels=args.randomize_labels)
     elif args.dataset == "mnist":
-        dataset = lib.datasets.MNIST(device, args.test_batch_size)
+        dataset = lib.datasets.MNIST(device, None, args.test_batch_size)
     elif args.dataset == "svhn":
         dataset = lib.datasets.SVHN(net,
                                     args.test_batch_size,
+                                    50000,
                                     args.augment)
     elif args.dataset == "imagenet":
         traindir = os.path.join(args.datadir, "train")
@@ -341,9 +381,10 @@ def main(args):
         dataset = lib.datasets.ImageNet(net,
                                         args.test_batch_size,
                                         traindir,
-                                        valdir)
+                                        valdir,
+                                        50000)
     else:
-        print("Only cifar10, mnist, and svhn are implemented")
+        print("Only cifar10, mnist, svhn and imagenet are implemented")
         exit()
 
     print_config(args)
@@ -602,19 +643,23 @@ def main(args):
 
         if stopped: break
 
-        trainloader = torch.utils.data.DataLoader(dataset.trainset,
-                                                  batch_size=args.batch_size,
-                                                  shuffle=True,
-                                                  num_workers=0)
+        for dataset_split in dataset.get_dataset_splits():
+            mini_test(args, dataset, device, epoch, state, logger, loss_fn)
+            dataset_sampler = torch.utils.data.SubsetRandomSampler(dataset_split)
+            trainloader = torch.utils.data.DataLoader(dataset.trainset,
+                                                      batch_size=args.batch_size,
+                                                      sampler=dataset_sampler,
+                                                      num_workers=0)
+
+            trainer.train(trainloader)
+            logger.next_partition()
+            if trainer.stopped:
+                stopped = True
+                break
+
         test(args, dataset, device, epoch, state, logger, loss_fn)
-
-        trainer.train(trainloader)
-        logger.next_partition()
-        if trainer.stopped:
-            stopped = True
-            break
-
         logger.next_epoch()
+
         if not args.no_logging:
             image_id_hist_logger.next_epoch()
             loss_hist_logger.next_epoch()
