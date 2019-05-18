@@ -57,7 +57,7 @@ def main(args):
 
 if __name__ == '__main__':
 
-    # git revert d10c2c017bd8eaaa2e97d5699c289b7dd04c48293
+    # git revert 2150ab18ae9e2d1ce0b1b6c06b3bcbc87b28437f
     # python scripts/py/benchmark_asymmetry_neurips.py -e 190516_asymmetry_titanv
 
     parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
