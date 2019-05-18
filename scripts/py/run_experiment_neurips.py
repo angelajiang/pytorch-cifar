@@ -27,7 +27,7 @@ def set_experiment_default_args(parser):
                         help='learning rate schedule is based on forward props')
 
     parser.add_argument('--num-trials', default=1, type=int, help='number of trials')
-    parser.add_argument('--start-epoch', "-se", default=1, type=int, help='SB start epoch')
+    parser.add_argument('--start-epoch', "-se", default=1, type=float, help='SB start epoch')
     parser.add_argument('--src-dir', default="./", type=str, help='/path/to/pytorch-cifar')
     parser.add_argument('--dst-dir', default="/proj/BigLearning/ahjiang/output/", type=str, help='/path/to/dst/dir')
 

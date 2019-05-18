@@ -20,16 +20,29 @@ def split(dataset_size, split_size):
     return strides
 
 class Dataset(object):
+    # TODO: remove this first_split_size nonsense
     def __init__(self, split_size):
-        self.split_size = split_size
+        self._split_size = split_size
+        self.first_split = True
 
-    def get_dataset_splits(self):
-        # Split dataset to get test acc more often, if necessary
-        if self.split_size is None:
-            split_size = len(self.trainset)
+    @property
+    def split_size(self):
+        if self._split_size is None:
+            return self.num_training_images
         else:
-            split_size = self.split_size
-        return split(len(self.trainset), split_size)
+            return self._split_size
+
+    def get_split_size(self, first_split_size):
+        if self.first_split and first_split_size is not None and first_split_size > 0:
+            return first_split_size
+        else:
+            return self.split_size
+
+    def get_dataset_splits(self, first_split_size=None):
+        split_size = self.get_split_size(first_split_size)
+        splits =  split(self.num_training_images, split_size)
+        self.first_split = False
+        return splits
 
 class CIFAR10(Dataset):
     def __init__(self, model, test_batch_size, augment, split_size, randomize_labels):

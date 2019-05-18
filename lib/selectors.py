@@ -7,17 +7,17 @@ import torch.nn as nn
 from random import shuffle
 
 class PrimedSelector(object):
-    def __init__(self, initial, final, initial_epochs, epoch=0):
-        self.epoch = epoch
+    def __init__(self, initial, final, initial_num_images, epoch=0):
         self.initial = initial
         self.final = final
-        self.initial_epochs = initial_epochs
+        self.initial_num_images = initial_num_images
+        self.num_trained = 0
 
-    def next_epoch(self):
-        self.epoch += 1
+    def next_partition(self, partition_size):
+        self.num_trained += partition_size
 
     def get_selector(self):
-        return self.initial if self.epoch < self.initial_epochs else self.final
+        return self.initial if self.num_trained < self.initial_num_images else self.final
 
     def select(self, *args, **kwargs):
         return self.get_selector().select(*args, **kwargs)
