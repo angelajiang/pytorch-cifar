@@ -373,7 +373,7 @@ def main(args):
     elif args.dataset == "svhn":
         dataset = lib.datasets.SVHN(net,
                                     args.test_batch_size,
-                                    25000,
+                                    100000,
                                     args.augment)
     elif args.dataset == "imagenet":
         traindir = os.path.join(args.datadir, "train")
@@ -387,6 +387,7 @@ def main(args):
         print("Only cifar10, mnist, svhn and imagenet are implemented")
         exit()
 
+    print(dataset.num_training_images)
     print_config(args)
 
     # Checkpointing case
@@ -487,11 +488,11 @@ def main(args):
                                                                             prob_loss_fn,
                                                                             args.sampling_min,
                                                                             args.max_history_len)
-    elif args.prob_strategy == "relative-sixth":
-        probability_calculator = lib.selectors.RelativeSixthProbabilityCalculator(device,
-                                                                                   prob_loss_fn,
-                                                                                   args.sampling_min,
-                                                                                   args.max_history_len)
+    elif args.prob_strategy == "relative-seventh":
+        probability_calculator = lib.selectors.RelativeSeventhProbabilityCalculator(device,
+                                                                                    prob_loss_fn,
+                                                                                    args.sampling_min,
+                                                                                    args.max_history_len)
     elif args.prob_strategy == "pscale":
         pscale_update_steps = dataset.num_training_images / 5
         print("config pscale_update_steps {}".format(pscale_update_steps))
