@@ -7,7 +7,7 @@ import subprocess
 def set_experiment_default_args(parser):
     parser.add_argument('--expname', '-e', default="tmp", type=str, help='experiment name')
     parser.add_argument('--strategy', '-s', default="baseline", type=str, help='baseline, sb')
-    parser.add_argument('--prob-strategy', '-p', default="relative-cubed", type=str, help='relative-cubed, relative-fourth')
+    parser.add_argument('--prob-strategy', '-p', default="relative-cubed", type=str, help='relative-cubed, relative-seventh')
     parser.add_argument('--dataset', '-d', default="cifar10", type=str, help='mnist, cifar10, svhn, imagenet')
     parser.add_argument('--network', '-n', default="mobilenetv2", type=str, help='network architecture')
     parser.add_argument('--nolog', '-nl', dest='nolog', action='store_true',
@@ -206,6 +206,7 @@ def main(args):
         if args.kath:
             if args.selector == "topk":
                 print("[Warning] Running Kath, overridding --selector")
+            assert(args.kath_strategy in ["reweighting", "biased", "baseline"])
             cmd += "--kath "
             cmd += "--kath-strategy={} ".format(args.kath_strategy)
             cmd += "--sample-size={} ".format(static_sample_size)
