@@ -369,7 +369,7 @@ def main(args):
                                        None,
                                        randomize_labels=args.randomize_labels)
     elif args.dataset == "mnist":
-        dataset = lib.datasets.MNIST(device, None, args.test_batch_size)
+        dataset = lib.datasets.MNIST(device, 5000, args.test_batch_size)
     elif args.dataset == "svhn":
         dataset = lib.datasets.SVHN(net,
                                     args.test_batch_size,
