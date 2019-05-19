@@ -33,6 +33,7 @@ def set_experiment_default_args(parser):
 
     parser.add_argument('--kath', dest='kath', action='store_true', help='Use Katharopoulos18')
     parser.add_argument('--kath-strategy', default="reweighted", type=str, help='Katharopoulos18')
+    parser.add_argument('--static-selectivity', default=4, type=int, help='Scale of superset')
 
     return parser
 
@@ -65,8 +66,8 @@ def get_sampling_min(strategy):
 def get_batch_size():
     return 128
 
-def get_static_sample_size(batch_size):
-    return batch_size * 4
+def get_static_sample_size(batch_size, static_selectivity):
+    return batch_size * static_selectivity
 
 def get_decay():
     return 0.0005
@@ -155,7 +156,7 @@ def main(args):
     output_dir, pickles_dir = get_experiment_dirs(args.dst_dir, args.dataset, args.expname)
     max_history_length = get_max_history_length()
     batch_size = get_batch_size()
-    static_sample_size = get_static_sample_size(batch_size)
+    static_sample_size = get_static_sample_size(batch_size, args.static_selectivity)
 
     for trial in range(1, args.num_trials+1):
         seed = seeder.get_seed()
