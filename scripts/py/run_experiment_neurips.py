@@ -10,6 +10,7 @@ def set_experiment_default_args(parser):
     parser.add_argument('--prob-strategy', '-p', default="relative-cubed", type=str, help='relative-cubed, relative-seventh')
     parser.add_argument('--dataset', '-d', default="cifar10", type=str, help='mnist, cifar10, svhn, imagenet')
     parser.add_argument('--network', '-n', default="mobilenetv2", type=str, help='network architecture')
+    parser.add_argument('--batch-size', '-b', default=128, type=int, help='batch size')
     parser.add_argument('--nolog', '-nl', dest='nolog', action='store_true',
                         help='turn off extra logging')
     parser.add_argument('--selector', dest='selector', default="sampling",
@@ -62,9 +63,6 @@ def get_sampling_min(strategy):
     else:
         print("{} not a strategy".format(strategy))
         exit()
-
-def get_batch_size():
-    return 128
 
 def get_sample_size(batch_size, static_selectivity, selector, is_kath):
     if is_kath:
@@ -160,8 +158,7 @@ def main(args):
     decay = get_decay()
     output_dir, pickles_dir = get_experiment_dirs(args.dst_dir, args.dataset, args.expname)
     max_history_length = get_max_history_length()
-    batch_size = get_batch_size()
-    static_sample_size = get_sample_size(batch_size, args.static_selectivity, args.selector, args.kath)
+    static_sample_size = get_sample_size(args.batch_size, args.static_selectivity, args.selector, args.kath)
 
     for trial in range(1, args.num_trials+1):
         seed = seeder.get_seed()
@@ -169,7 +166,7 @@ def main(args):
                                                     args.dataset,
                                                     args.network,
                                                     sampling_min,
-                                                    batch_size,
+                                                    args.batch_size,
                                                     max_history_length,
                                                     decay,
                                                     trial,
@@ -185,7 +182,7 @@ def main(args):
         cmd += "--sb-start-epoch={} ".format(args.start_epoch)
         cmd += "--sb-strategy={} ".format(args.selector)
         cmd += "--net={} ".format(args.network)
-        cmd += "--batch-size={} ".format(batch_size)
+        cmd += "--batch-size={} ".format(args.batch_size)
         cmd += "--decay={} ".format(decay)
         cmd += "--max-num-backprops={} ".format(max_num_backprops)
         cmd += "--pickle-dir={} ".format(pickles_dir)
