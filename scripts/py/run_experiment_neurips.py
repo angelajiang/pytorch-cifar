@@ -66,8 +66,13 @@ def get_sampling_min(strategy):
 def get_batch_size():
     return 128
 
-def get_static_sample_size(batch_size, static_selectivity):
-    return batch_size * static_selectivity
+def get_sample_size(batch_size, static_selectivity, selector, is_kath):
+    if is_kath:
+        return batch_size * static_selectivity
+    elif selector == "topk":
+        return batch_size / static_selectivity
+    else:
+        return -1
 
 def get_decay():
     return 0.0005
@@ -156,7 +161,7 @@ def main(args):
     output_dir, pickles_dir = get_experiment_dirs(args.dst_dir, args.dataset, args.expname)
     max_history_length = get_max_history_length()
     batch_size = get_batch_size()
-    static_sample_size = get_static_sample_size(batch_size, args.static_selectivity)
+    static_sample_size = get_sample_size(batch_size, args.static_selectivity, args.selector, args.kath)
 
     for trial in range(1, args.num_trials+1):
         seed = seeder.get_seed()

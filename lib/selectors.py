@@ -197,7 +197,7 @@ class RelativeCubedProbabilityCalculator(RelativeProbabilityCalculator):
 
 class RelativeSeventhProbabilityCalculator(RelativeProbabilityCalculator):
     def __init__(self, device, loss_fn, sampling_min, history_length):
-        super(RelativeSixthProbabilityCalculator, self).__init__(device, loss_fn, sampling_min, history_length)
+        super(RelativeSeventhProbabilityCalculator, self).__init__(device, loss_fn, sampling_min, history_length)
 
     def calculate_probability(self, percentile):
         return math.pow(percentile / 100., 7)
