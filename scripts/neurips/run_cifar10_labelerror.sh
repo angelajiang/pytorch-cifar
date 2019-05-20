@@ -18,6 +18,7 @@ LR="data/config/lr_sched_fast"
 DECAY=0.0005
 MAX_NUM_BACKPROPS=5840000
 SEED=1337
+HIST_SIZE=1024
 
 EXP_NAME=$EXP_PREFIX
 
@@ -32,8 +33,8 @@ git rev-parse HEAD &> $OUTPUT_DIR/sha
 for i in `seq 1 $NUM_TRIALS`
 do
 
-  OUTPUT_FILE="sampling_cifar10_"$NET"_"$SAMPLING_MIN"_"$BATCH_SIZE"_$HIST_SIZE_"$DECAY"_trial"$i"_seed"$SEED"_v2"
-  PICKLE_PREFIX="sampling_cifar10_"$NET"_"$SAMPLING_MIN"_"$BATCH_SIZE"_$HIST_SIZE_"$DECAY"_trial"$i"_seed"$SEED
+  OUTPUT_FILE="sampling_cifar10_"$NET"_"$SAMPLING_MIN"_"$BATCH_SIZE"_"$HIST_SIZE"_"$DECAY"_trial"$i"_seed"$SEED"_v2"
+  PICKLE_PREFIX="sampling_cifar10_"$NET"_"$SAMPLING_MIN"_"$BATCH_SIZE"_"$HIST_SIZE"_"$DECAY"_trial"$i"_seed"$SEED
 
   echo $OUTPUT_DIR/$OUTPUT_FILE
 
@@ -44,6 +45,7 @@ do
     --sb-start-epoch=$START_EPOCH \
     --net=$NET \
     --batch-size=$BATCH_SIZE \
+    --max-history-len=$HIST_SIZE \
     --decay=$DECAY \
     --max-num-backprops=$MAX_NUM_BACKPROPS \
     --pickle-dir=$PICKLE_DIR \
