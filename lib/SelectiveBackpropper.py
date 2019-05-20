@@ -18,7 +18,7 @@ class SelectiveBackpropper:
 
         ## Hardcoded params
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        sb_start_epoch = 1
+        images_to_prime = 50000
         log_interval = 1
         sampling_max = 1
         max_history_len = 1024
@@ -41,15 +41,13 @@ class SelectiveBackpropper:
 
         self.selector = selectors.PrimedSelector(selectors.BaselineSelector(),
                                                  final_selector,
-                                                 sb_start_epoch,
-                                                 epoch=start_epoch)
+                                                 images_to_prime)
         self.backpropper = backproppers.PrimedBackpropper(backproppers.BaselineBackpropper(device,
                                                                                            model,
                                                                                            optimizer,
                                                                                            loss_fn),
                                                      final_backpropper,
-                                                     sb_start_epoch,
-                                                     epoch=start_epoch)
+                                                     images_to_prime)
         self.trainer = trainer.Trainer(device,
                                        model,
                                        self.selector,
@@ -65,11 +63,11 @@ class SelectiveBackpropper:
                                      num_skipped=start_num_skipped)
         self.trainer.on_forward_pass(self.logger.handle_forward_batch)
         self.trainer.on_backward_pass(self.logger.handle_backward_batch)
+        self.backpropper.next_partition(50000)
+        self.selector.next_partition(50000)
 
     def next_epoch(self):
         self.logger.next_epoch()
-        self.selector.next_epoch()
-        self.backpropper.next_epoch()
 
     def next_partition(self):
         self.logger.next_partition()
