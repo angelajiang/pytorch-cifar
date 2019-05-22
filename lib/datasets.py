@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -7,8 +8,46 @@ import lib.cifar
 import lib.mnist
 from PIL import ImageFile
 
-class CIFAR10:
-    def __init__(self, model, test_batch_size, augment, randomize_labels):
+def get_batches(iterable, n=1):
+    l = len(iterable)
+    batches = [iterable[ndx:min(ndx + n, l)] for ndx in range(0, l, n)]
+    return batches
+
+def split(dataset_size, split_size):
+    indices = list(range(dataset_size))
+    np.random.shuffle(indices)
+    strides = get_batches(indices, split_size)
+    return strides
+
+class Dataset(object):
+    # TODO: remove this first_split_size nonsense
+    def __init__(self, split_size):
+        self._split_size = split_size
+        self.first_split = True
+
+    @property
+    def split_size(self):
+        if self._split_size is None:
+            return self.num_training_images
+        else:
+            return self._split_size
+
+    def get_split_size(self, first_split_size):
+        if self.first_split and first_split_size is not None and first_split_size > 0:
+            return first_split_size
+        else:
+            return self.split_size
+
+    def get_dataset_splits(self, first_split_size=None):
+        split_size = self.get_split_size(first_split_size)
+        splits =  split(self.num_training_images, split_size)
+        self.first_split = False
+        return splits
+
+class CIFAR10(Dataset):
+    def __init__(self, model, test_batch_size, augment, split_size, randomize_labels):
+
+        super(CIFAR10, self).__init__(split_size)
 
         self.classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
         self.model = model
@@ -58,8 +97,10 @@ class CIFAR10:
                                                             std = [ 1., 1., 1. ])
                                       ])
 
-class MNIST:
-    def __init__(self, device, test_batch_size):
+class MNIST(Dataset):
+    def __init__(self, device, split_size, test_batch_size):
+
+        super(MNIST, self).__init__(split_size)
 
         self.model = MNISTNet().to(device)
 
@@ -113,8 +154,11 @@ class IndexedSVHN(datasets.SVHN):
         retval = super(IndexedSVHN, self).__getitem__(index)
         return retval + (index,)
 
-class SVHN:
-    def __init__(self, model, test_batch_size, augment):
+class SVHN(Dataset):
+    def __init__(self, model, test_batch_size, split_size, augment):
+
+        super(SVHN, self).__init__(split_size)
+
         self.classes = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
         self.model = model
         self.augment = augment
@@ -171,8 +215,11 @@ class IndexedImageFolder(datasets.ImageFolder):
         retval = super(IndexedImageFolder, self).__getitem__(index)
         return retval + (index,)
 
-class ImageNet:
-    def __init__(self, model, test_batch_size, traindir, valdir):
+class ImageNet(Dataset):
+    def __init__(self, model, test_batch_size, traindir, valdir, split_size):
+
+        super(ImageNet, self).__init__(split_size)
+
         ImageFile.LOAD_TRUNCATED_IMAGES = True
 
         self.classes = [str(i) for i in range(1000)]
