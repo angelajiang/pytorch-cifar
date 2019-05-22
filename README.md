@@ -6,6 +6,6 @@ Scripts to run SB are found in `scripts/` dir.
 
 ```bash
 # Example
-bash scripts/run_cifar10_network.sh mytestrun 0.1 densenet 128 /path/to/output/dir
+python scripts/py/run_experiment_neurips.py -d cifar10 -e expname --network=mobilenetv2 -s sb
 ```
 
