@@ -1,6 +1,6 @@
 # Train CIFAR10 with PyTorch
 
-This is the repository for Selective-Backprop (SB), undersubmission to ICML 2019.
+This is the repository for Selective-Backprop (SB), undersubmission to NeurIPS 2019.
 
 Scripts to run SB are found in `scripts/` dir.
 
