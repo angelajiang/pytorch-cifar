@@ -58,12 +58,15 @@ class Trainer(object):
         self.forwardlr = forwardlr
         self.max_num_backprops = max_num_backprops
         self.on_backward_pass(self.update_num_backpropped)
+        self.on_forward_pass(self.update_num_forwards)
         if lr_schedule:
             self.load_lr_schedule(lr_schedule)
             self.on_backward_pass(self.update_learning_rate)
 
     def update_num_backpropped(self, batch):
         self.global_num_backpropped += sum([1 for e in batch if e.select])
+
+    def update_num_forwards(self, batch):
         self.global_num_forwards += len(batch)
 
     def on_forward_pass(self, handler):
