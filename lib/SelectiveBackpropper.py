@@ -14,7 +14,8 @@ class SelectiveBackpropper:
                  batch_size,
                  lr_sched,
                  num_classes,
-                 forwardlr):
+                 forwardlr,
+                 kath):
 
         ## Hardcoded params
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -28,34 +29,57 @@ class SelectiveBackpropper:
         start_epoch = 0
         start_num_backpropped = 0
         start_num_skipped = 0
+        kath_oversampling_rate = 4
 
-        probability_calculator = selectors.RelativeCubedProbabilityCalculator(device,
-                                                                             prob_loss_fn,
-                                                                             sampling_min,
-                                                                             max_history_len)
-        final_selector = selectors.SamplingSelector(probability_calculator)
-        final_backpropper = backproppers.SamplingBackpropper(device,
+        if kath:
+            self.selector = None
+            final_backpropper = backproppers.BaselineBackpropper(device,
+                                                                     model,
+                                                                     optimizer,
+                                                                     loss_fn)
+            self.backpropper = backproppers.PrimedBackpropper(backproppers.BaselineBackpropper(device,
+                                                                                                  model,
+                                                                                                  optimizer,
+                                                                                                  loss_fn),
+                                                             final_backpropper,
+                                                             images_to_prime)
+            self.trainer = trainer.KathTrainer(device,
+                                                   model,
+                                                   self.backpropper,
+                                                   batch_size,
+                                                   batch_size * kath_oversampling_rate,
+                                                   loss_fn,
+                                                   lr_sched,
+                                                   forwardlr=forwardlr)
+        else:
+
+            probability_calculator = selectors.RelativeCubedProbabilityCalculator(device,
+                                                                                 prob_loss_fn,
+                                                                                 sampling_min,
+                                                                                 max_history_len)
+            final_selector = selectors.SamplingSelector(probability_calculator)
+            final_backpropper = backproppers.SamplingBackpropper(device,
                                                                  model,
                                                                  optimizer,
                                                                  loss_fn)
 
-        self.selector = selectors.PrimedSelector(selectors.BaselineSelector(),
-                                                 final_selector,
-                                                 images_to_prime)
-        self.backpropper = backproppers.PrimedBackpropper(backproppers.BaselineBackpropper(device,
-                                                                                           model,
-                                                                                           optimizer,
-                                                                                           loss_fn),
-                                                     final_backpropper,
+            self.selector = selectors.PrimedSelector(selectors.BaselineSelector(),
+                                                     final_selector,
                                                      images_to_prime)
-        self.trainer = trainer.Trainer(device,
-                                       model,
-                                       self.selector,
-                                       self.backpropper,
-                                       batch_size,
-                                       loss_fn,
-                                       lr_schedule=lr_sched,
-                                       forwardlr=forwardlr)
+            self.backpropper = backproppers.PrimedBackpropper(backproppers.BaselineBackpropper(device,
+                                                                                               model,
+                                                                                               optimizer,
+                                                                                               loss_fn),
+                                                              final_backpropper,
+                                                              images_to_prime)
+            self.trainer = trainer.Trainer(device,
+                                           model,
+                                           self.selector,
+                                           self.backpropper,
+                                           batch_size,
+                                           loss_fn,
+                                           lr_schedule=lr_sched,
+                                           forwardlr=forwardlr)
 
         self.logger = loggers.Logger(log_interval = log_interval,
                                      epoch=start_epoch,
@@ -64,7 +88,8 @@ class SelectiveBackpropper:
         self.trainer.on_forward_pass(self.logger.handle_forward_batch)
         self.trainer.on_backward_pass(self.logger.handle_backward_batch)
         self.backpropper.next_partition(50000)
-        self.selector.next_partition(50000)
+        if self.selector:
+            self.selector.next_partition(50000)
 
     def next_epoch(self):
         self.logger.next_epoch()
