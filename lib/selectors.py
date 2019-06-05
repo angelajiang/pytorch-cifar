@@ -7,17 +7,17 @@ import torch.nn as nn
 from random import shuffle
 
 class PrimedSelector(object):
-    def __init__(self, initial, final, initial_epochs, epoch=0):
-        self.epoch = epoch
+    def __init__(self, initial, final, initial_num_images, epoch=0):
         self.initial = initial
         self.final = final
-        self.initial_epochs = initial_epochs
+        self.initial_num_images = initial_num_images
+        self.num_trained = 0
 
-    def next_epoch(self):
-        self.epoch += 1
+    def next_partition(self, partition_size):
+        self.num_trained += partition_size
 
     def get_selector(self):
-        return self.initial if self.epoch < self.initial_epochs else self.final
+        return self.initial if self.num_trained < self.initial_num_images else self.final
 
     def select(self, *args, **kwargs):
         return self.get_selector().select(*args, **kwargs)
@@ -160,23 +160,57 @@ class BaselineSelector(object):
             example.select = self.select(example)
         return forward_pass_batch
 
-
-class RelativeProbabiltyCalculator(object):
-    def __init__(self, device, loss_fn, sampling_min, history_length):
+class RelativeProbabilityCalculator(object):
+    def __init__(self, device, loss_fn, sampling_min, history_length, beta):
         self.device = device
         self.loss_fn = loss_fn
         self.historical_losses = collections.deque(maxlen=history_length)
         self.sampling_min = sampling_min
+        self.beta = beta
 
     def update_history(self, loss):
         self.historical_losses.append(loss)
+
+    def calculate_probability(self, percentile):
+        return math.pow(percentile / 100., self.beta)
 
     def get_probability(self, example):
         loss = self.loss_fn()(example.output.unsqueeze(0), example.target.unsqueeze(0))
         loss = loss.cpu().data.numpy()
         self.update_history(loss)
-        prob = stats.percentileofscore(self.historical_losses, loss, kind="rank") / 100.
+        prob = self.calculate_probability(stats.percentileofscore(self.historical_losses, loss, kind="rank"))
         return max(self.sampling_min, prob)
+
+class HybridProbabilityCalculator(RelativeProbabilityCalculator):
+    def __init__(self, device, loss_fn, sampling_min, history_length, beta, num_classes):
+        RelativeProbabilityCalculator.__init__(self, device, loss_fn, sampling_min, history_length, beta)
+        self.num_classes = num_classes
+
+    def get_relative_probability(self, example):
+        loss = self.loss_fn()(example.output.unsqueeze(0), example.target.unsqueeze(0))
+        loss = loss.cpu().data.numpy()
+        self.update_history(loss)
+        prob = self.calculate_probability(stats.percentileofscore(self.historical_losses, loss, kind="rank"))
+        return max(self.sampling_min, prob)
+
+    def get_absolute_probability(self, example):
+        target = example.target
+        softmax_output = example.softmax_output
+        target_tensor = self.hot_encode_scalar(target)
+        l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
+        l2_dist *= l2_dist
+        base = torch.clamp(l2_dist, min=self.sampling_min)
+        prob = torch.clamp(base, max=1).detach()
+        return prob.item()
+
+    def hot_encode_scalar(self, target):
+        target_vector = np.zeros(self.num_classes)
+        target_vector[target.item()] = 1
+        target_tensor = torch.Tensor(target_vector)
+        return target_tensor
+
+    def get_probability(self, example):
+        return max(self.get_relative_probability(example), self.get_absolute_probability(example))
 
 class SelectProbabiltyCalculator(object):
     def __init__(self, sampling_min, sampling_max, num_classes, device,
