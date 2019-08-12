@@ -8,7 +8,9 @@ def set_experiment_default_args(parser):
     parser.add_argument('--expname', '-e', default="tmp", type=str, help='experiment name')
     parser.add_argument('--strategy', '-s', default="baseline", type=str, help='baseline, sb')
     parser.add_argument('--prob-strategy', '-p', default="relative", type=str, help='relative')
-    parser.add_argument('--beta', default=1, type=float, help='beta on relative')
+    parser.add_argument('--fp-prob-strategy', '-fp', default="vanilla", type=str, help='vanilla')
+    parser.add_argument('--std-mult', default=1, type=float, help='std mult for fp hist calculator')
+    parser.add_argument('--beta', default=3, type=float, help='beta on relative')
     parser.add_argument('--dataset', '-d', default="cifar10", type=str, help='mnist, cifar10, svhn, imagenet')
     parser.add_argument('--network', '-n', default="mobilenetv2", type=str, help='network architecture')
     parser.add_argument('--batch-size', '-b', default=128, type=int, help='batch size')
@@ -16,6 +18,8 @@ def set_experiment_default_args(parser):
                         help='turn off extra logging')
     parser.add_argument('--selector', dest='selector', default="sampling",
                         help='Select strategyy from {sampling, deterministic, topk}')
+    parser.add_argument('--noaugment', '-na', dest='noaugment', action='store_true',
+                        help='Turn augmentation off')
 
     # Mutually exclusive with LR sched opts
     parser.add_argument('--static-lr', '-slr', default=None, type=float, help='Overrides LR sched opts')
@@ -114,7 +118,7 @@ def get_output_files(sb_selector,
     if sb_selector == "topk":
         max_history_length = static_sample_size
 
-    output_file = "{}_{}_{}_{}_{}_{}_{}_trial{}_seed{}_v2".format(sb_selector,
+    output_file = "{}_{}_{}_{}_{}_{}_{}_trial{}_seed{}_v3".format(sb_selector,
                                                                dataset,
                                                                net,
                                                                sampling_min,
@@ -177,6 +181,7 @@ def main(args):
                                                     static_sample_size)
         cmd = "python main.py "
         cmd += "--prob-strategy={} ".format(args.prob_strategy)
+        cmd += "--fp-prob-strategy={} ".format(args.fp_prob_strategy)
         cmd += "--prob-pow={} ".format(args.beta)
         cmd += "--max-history-len={} ".format(max_history_length)
         cmd += "--dataset={} ".format(args.dataset)
@@ -191,6 +196,7 @@ def main(args):
         cmd += "--pickle-prefix={} ".format(pickle_file)
         cmd += "--sampling-min={} ".format(sampling_min)
         cmd += "--seed={} ".format(seed)
+        cmd += "--std-multiplier={} ".format(args.std_mult)
         if args.static_lr is None:
             cmd += "--lr-sched={} ".format(lr_sched_path)
         else:
@@ -215,7 +221,10 @@ def main(args):
             cmd += "--kath-strategy={} ".format(args.kath_strategy)
             cmd += "--sample-size={} ".format(static_sample_size)
 
-        cmd += "--augment"
+        if not args.noaugment:
+            cmd += "--augment "
+
+        cmd = cmd.strip()
 
         output_path = os.path.join(output_dir, output_file)
         print("========================================================================")

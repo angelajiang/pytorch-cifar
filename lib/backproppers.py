@@ -33,27 +33,18 @@ class BaselineBackpropper(object):
         # TODO: This doesn't work after resuming from checkpoint
 
     def _get_chosen_data_tensor(self, batch):
-        chosen_data = [example.datum for example in batch if example.select]
+        chosen_data = [example.datum for example in batch if example.get_select(False)]
         return torch.stack(chosen_data)
 
     def _get_chosen_targets_tensor(self, batch):
-        chosen_targets = [example.target for example in batch if example.select]
-        chosen = len([example.target for example in batch if example.select])
+        chosen_targets = [example.target for example in batch if example.get_select(False)]
+        chosen = len([example.target for example in batch if example.get_select(False)])
         whole = len(batch)
         return torch.stack(chosen_targets)
 
     def _get_chosen_probabilities_tensor(self, batch):
-        probabilities = [example.select_probability for example in batch if example.select]
+        probabilities = [example.get_sp(False) for example in batch if example.get_select(False)]
         return torch.tensor(probabilities, dtype=torch.float)
-
-    @property
-    def total_norm(self):
-        total_norm = 0
-	for p in self.net.parameters():
-            param_norm = p.grad.data.norm(2)
-            total_norm += param_norm.item() ** 2
-        total_norm = total_norm ** (1. / 2)
-        return total_norm
 
     def backward_pass(self, batch):
         self.net.train()
@@ -79,8 +70,6 @@ class BaselineBackpropper(object):
         loss.backward()
         self.optimizer.step()
 
-        print("total_norm {}".format(self.total_norm))
-
         return batch
 
 
@@ -93,25 +82,16 @@ class SamplingBackpropper(object):
         self.loss_fn = loss_fn
 
     def _get_chosen_data_tensor(self, batch):
-        chosen_data = [example.datum for example in batch if example.select]
+        chosen_data = [example.datum for example in batch if example.get_select(False)]
         return torch.stack(chosen_data)
 
     def _get_chosen_targets_tensor(self, batch):
-        chosen_targets = [example.target for example in batch if example.select]
+        chosen_targets = [example.target for example in batch if example.get_select(False)]
         return torch.stack(chosen_targets)
 
     def _get_chosen_probabilities_tensor(self, batch):
-        probabilities = [example.select_probability for example in batch if example.select]
+        probabilities = [example.get_sp(False) for example in batch if example.get_select(False)]
         return torch.tensor(probabilities, dtype=torch.float)
-
-    @property
-    def total_norm(self):
-        total_norm = 0
-	for p in self.net.parameters():
-            param_norm = p.grad.data.norm(2)
-            total_norm += param_norm.item() ** 2
-        total_norm = total_norm ** (1. / 2)
-        return total_norm
 
     def backward_pass(self, batch):
         self.net.train()
@@ -140,8 +120,6 @@ class SamplingBackpropper(object):
         loss.backward()
         self.optimizer.step()
 
-        print("total_norm {}".format(self.total_norm))
-
         return batch
 
 
@@ -154,20 +132,20 @@ class ReweightedBackpropper(object):
         self.loss_fn = loss_fn
 
     def _get_chosen_data_tensor(self, batch):
-        chosen_data = [example.datum for example in batch if example.select]
+        chosen_data = [example.datum for example in batch if example.get_select(False)]
         return torch.stack(chosen_data)
 
     def _get_chosen_targets_tensor(self, batch):
-        chosen_targets = [example.target for example in batch if example.select]
+        chosen_targets = [example.target for example in batch if example.get_select(False)]
         return torch.stack(chosen_targets)
 
     def _get_chosen_probabilities_tensor(self, batch):
-        probabilities = [example.select_probability for example in batch if example.select]
+        probabilities = [example.get_sp(False) for example in batch if example.get_select(False)]
         return torch.tensor(probabilities, dtype=torch.float)
 
     def _get_chosen_weights_tensor(self, batch):
-        prob_sum = sum([example.select_probability for example in batch])
-        probabilities = [prob_sum / len(batch) / example.select_probability for example in batch]
+        prob_sum = sum([example.get_sp(False) for example in batch])
+        probabilities = [prob_sum / len(batch) / example.get_sp(False) for example in batch]
         return torch.tensor(probabilities, dtype=torch.float)
 
     @property
@@ -205,8 +183,6 @@ class ReweightedBackpropper(object):
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-
-        print("total_norm {}".format(self.total_norm))
 
         return batch
 
