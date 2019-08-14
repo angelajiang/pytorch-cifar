@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 from random import shuffle
 import lib.predictors
+import lib.hist
 
 # TODO: Transform into base classes
 def get_probability_calculator(calculator_type,
@@ -23,11 +24,11 @@ def get_probability_calculator(calculator_type,
         prob_transform = None
 
     if calculator_type == "vanilla":
-        probability_calculator = BatchedSelectProbabiltyCalculator(sampling_min,
-                                                                   sampling_max,
-                                                                   num_classes,
-                                                                   device,
-                                                                   prob_transform=prob_transform)
+        probability_calculator = BatchedSelectProbabilityCalculator(sampling_min,
+                                                                    sampling_max,
+                                                                    num_classes,
+                                                                    device,
+                                                                    prob_transform=prob_transform)
     elif calculator_type == "alwayson":
         probability_calculator = BatchedAlwaysOnProbabilityCalculator()
     elif calculator_type == "relative":
@@ -58,7 +59,7 @@ class BatchedRelativeProbabilityCalculator(object):
     def __init__(self, device, loss_fn, sampling_min, history_length, beta):
         self.device = device
         self.loss_fn = loss_fn
-        self.historical_losses = collections.deque(maxlen=history_length)
+        self.historical_losses = lib.hist.UnboundedHistogram(history_length) #collections.deque(maxlen=history_length)
         self.sampling_min = sampling_min
         self.beta = beta
 
@@ -68,7 +69,7 @@ class BatchedRelativeProbabilityCalculator(object):
             self.historical_losses.append(loss)
 
     def calculate_probability(self, loss):
-        percentile = stats.percentileofscore(self.historical_losses, loss, kind="rank")
+        percentile = self.historical_losses.percentile_of_score(loss)
         return math.pow(percentile / 100., self.beta)
 
     def get_probability(self, examples):
@@ -124,6 +125,29 @@ class HybridProbabilityCalculator(RelativeProbabilityCalculator):
 
     def get_probability(self, example):
         return max(self.get_relative_probability(example), self.get_absolute_probability(example))
+
+class BatchedSelectProbabilityCalculator(object):
+    def __init__(self, sampling_min, sampling_max, num_classes, device, prob_transform=None):
+        self.sampling_min = sampling_min
+        self.sampling_max = sampling_max
+        self.num_classes = num_classes
+        self.device = device
+        if prob_transform:
+            self.prob_transform = prob_transform
+        else:
+            self.prob_transform  = lambda x: x
+
+    def get_probability(self, examples):
+        ts = [example.target for e in examples]
+        ss = [example.softmax_output for e in examples]
+        targets = torch.stack(ts, dim=0).cpu().numpy()
+        softmax_outputs = torch.stack(ss, dim=0).cpu().numpy()
+        classes = np.diag(np.arange(self.num_classes))
+        target_tensor = classes[targets]
+        l2_dist = np.linalg.norm(target_tensor - softmax_outputs, axis=1)
+        l2_dist = np.square(l2_dist)
+        base = np.clip(self.prob_transform(l2_dist), self.sampling_min, self.sampling_max)
+        return np.clip(base, self.sampling_min, self.sampling_max)
 
 class SelectProbabiltyCalculator(object):
     def __init__(self, sampling_min, sampling_max, num_classes, device,

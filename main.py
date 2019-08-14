@@ -87,16 +87,16 @@ def set_experiment_default_args(parser):
                         help='epoch to start selective backprop')
     parser.add_argument('--sb-strategy', default="sampling", metavar='N',
                         help='Selective backprop strategy among {baseline, deterministic, sampling}')
-    parser.add_argument('--prob-strategy', default="vanilla", metavar='N',
-                        help='Probability calculator among {vanilla, pscale, proportional, relative}')
+    parser.add_argument('--prob-strategy', default="alwayson", metavar='N',
+                        help='Probability calculator among {alwayson, pscale, proportional, relative}')
     parser.add_argument('--prob-pow', type=float, default=1, metavar='N',
                         help='Power to scale probability by')
     parser.add_argument('--prob-loss-fn', default="cross", metavar='N',
                         help='Loss function among {cross, mse}')
     parser.add_argument('--max-history-len', type=int, default=None, metavar='N',
                         help='History length for relative prob calculator')
-    parser.add_argument('--fp-prob-strategy', default="vanilla", metavar='N',
-                        help='Forward pass probability calculator among {vanilla}')
+    parser.add_argument('--fp-prob-strategy', default="alwayson", metavar='N',
+                        help='Forward pass probability calculator among {alwayson}')
     parser.add_argument('--std-multiplier', type=float, default=1, metavar='N',
                         help='stdev multiplier for forward pass prob calculator')
     parser.add_argument('--sample-size', type=int, default=64, metavar='N',

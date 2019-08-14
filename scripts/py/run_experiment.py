@@ -58,7 +58,8 @@ def get_lr_sched_path(src_dir, dataset, gradual, fast):
 
 def get_max_num_backprops(lr_filename, profile):
     if profile:
-        return 100000
+        print("[WARNING] Profiling turned on. Overriding max_num_backprops to 200000")
+        return 200000
     with open(lr_filename) as f:
         data = json.load(f)
     last_lr_jump = max([int(k) for k in data.keys()])
@@ -164,6 +165,14 @@ def get_imagenet_datadir():
 def get_nolog(nolog, profile):
     return nolog or profile
 
+def get_start_epoch(start_epoch, profile):
+    if profile:
+        print("[WARNING] Profiling turned on. Overriding start_epoch to 0")
+        return 0
+    else:
+        return start_epoch
+
+
 def main(args):
     seeder = Seeder()
     src_dir = os.path.abspath(args.src_dir)
@@ -179,6 +188,7 @@ def main(args):
     static_sample_size = get_sample_size(args.batch_size, args.static_selectivity, args.selector, args.kath)
     prob_strategy = get_prob_strategy(args.prob_strategy, args.strategy)
     fp_prob_strategy = get_prob_strategy(args.fp_prob_strategy, args.strategy)
+    start_epoch = get_start_epoch(args.start_epoch, args.profile)
 
     for trial in range(1, args.num_trials+1):
         seed = seeder.get_seed()
@@ -204,7 +214,7 @@ def main(args):
         cmd += "--max-history-len={} ".format(max_history_length)
         cmd += "--dataset={} ".format(args.dataset)
         cmd += "--prob-loss-fn={} ".format("cross")
-        cmd += "--sb-start-epoch={} ".format(args.start_epoch)
+        cmd += "--sb-start-epoch={} ".format(start_epoch)
         cmd += "--sb-strategy={} ".format(args.selector)
         cmd += "--net={} ".format(args.network)
         cmd += "--batch-size={} ".format(args.batch_size)
