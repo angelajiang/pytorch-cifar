@@ -374,14 +374,19 @@ def main(args):
         dataset = lib.datasets.CIFAR10(net,
                                        args.test_batch_size,
                                        args.augment,
-                                       args.batch_size * 4,
+                                       #args.batch_size * 4,
+                                       None,
                                        randomize_labels=args.randomize_labels)
     elif args.dataset == "mnist":
-        dataset = lib.datasets.MNIST(10000, args.test_batch_size)
+        dataset = lib.datasets.MNIST(
+                                    #10000,
+                                    None,
+                                    args.test_batch_size)
     elif args.dataset == "svhn":
         dataset = lib.datasets.SVHN(net,
                                     args.test_batch_size,
-                                    100000,
+                                    #100000,
+                                    None,
                                     args.augment)
     elif args.dataset == "imagenet":
         traindir = os.path.join(args.datadir, "train")
@@ -583,10 +588,10 @@ def main(args):
     probability_by_image_logger = lib.loggers.ProbabilityByImageLogger(args.pickle_dir,
                                                                        args.pickle_prefix)
 
-    trainer.on_forward_pass(logger.handle_forward_batch)
-    trainer.on_backward_pass(logger.handle_backward_batch)
-    trainer.on_forward_mark(logger.handle_forward_mark)
     if not args.no_logging:
+        trainer.on_forward_pass(logger.handle_forward_batch)
+        trainer.on_backward_pass(logger.handle_backward_batch)
+        trainer.on_forward_mark(logger.handle_forward_mark)
         trainer.on_backward_pass(image_id_hist_logger.handle_backward_batch)
         trainer.on_backward_pass(loss_hist_logger.handle_backward_batch)
         trainer.on_backward_pass(probability_by_image_logger.handle_backward_batch)
@@ -603,9 +608,10 @@ def main(args):
 
         for dataset_split in dataset.get_dataset_splits(first_split_size=num_images_to_prime):
 
-            if logger.global_num_backpropped - last_global_num_backpropped > eval_every_n: 
-                mini_test(args, dataset, device, epoch, state, logger, loss_fn)
-                last_global_num_backpropped = logger.global_num_backpropped
+            if not args.no_logging:
+                if logger.global_num_backpropped - last_global_num_backpropped > eval_every_n: 
+                    mini_test(args, dataset, device, epoch, state, logger, loss_fn)
+                    last_global_num_backpropped = logger.global_num_backpropped
 
             dataset_sampler = torch.utils.data.SubsetRandomSampler(dataset_split)
             trainloader = torch.utils.data.DataLoader(dataset.trainset,

@@ -8,7 +8,7 @@ def set_experiment_default_args(parser):
     parser.add_argument('--expname', '-e', default="tmp", type=str, help='experiment name')
     parser.add_argument('--strategy', '-s', default="baseline", type=str, help='baseline, sb')
     parser.add_argument('--prob-strategy', '-p', default="relative", type=str, help='relative')
-    parser.add_argument('--fp-prob-strategy', '-fp', default="vanilla", type=str, help='vanilla')
+    parser.add_argument('--fp-prob-strategy', '-fp', default="alwayson", type=str, help='alwayson')
     parser.add_argument('--std-mult', default=1, type=float, help='std mult for fp hist calculator')
     parser.add_argument('--beta', default=3, type=float, help='beta on relative')
     parser.add_argument('--dataset', '-d', default="cifar10", type=str, help='mnist, cifar10, svhn, imagenet')
@@ -18,6 +18,8 @@ def set_experiment_default_args(parser):
                         help='turn off extra logging')
     parser.add_argument('--selector', dest='selector', default="sampling",
                         help='Select strategyy from {sampling, deterministic, topk}')
+    parser.add_argument('--profile', dest='profile', action='store_true',
+                        help='turn profiling on')
     parser.add_argument('--noaugment', '-na', dest='noaugment', action='store_true',
                         help='Turn augmentation off')
 
@@ -54,7 +56,9 @@ def get_lr_sched_path(src_dir, dataset, gradual, fast):
     path = os.path.join(src_dir, "data/config/neurips", filename)
     return path
 
-def get_max_num_backprops(lr_filename):
+def get_max_num_backprops(lr_filename, profile):
+    if profile:
+        return 100000
     with open(lr_filename) as f:
         data = json.load(f)
     last_lr_jump = max([int(k) for k in data.keys()])
@@ -148,8 +152,17 @@ def get_experiment_dirs(dst_dir, dataset, expname):
         os.mkdir(pickles_dir)
     return output_dir, pickles_dir
 
+def get_prob_strategy(prob_strategy, strategy):
+    if strategy == "baseline":
+        return "alwayson"
+    else:
+        return prob_strategy
+
 def get_imagenet_datadir():
     return "/proj/BigLearning/ahjiang/datasets/imagenet-data"
+
+def get_nolog(nolog, profile):
+    return nolog or profile
 
 def main(args):
     seeder = Seeder()
@@ -158,12 +171,14 @@ def main(args):
     if not os.path.isfile(lr_sched_path):
         print("{} is not a file").format(lr_sched_path)
         exit()
-    max_num_backprops = get_max_num_backprops(lr_sched_path)
+    max_num_backprops = get_max_num_backprops(lr_sched_path, args.profile)
     sampling_min = get_sampling_min(args.strategy)
     decay = get_decay()
     output_dir, pickles_dir = get_experiment_dirs(args.dst_dir, args.dataset, args.expname)
     max_history_length = get_max_history_length()
     static_sample_size = get_sample_size(args.batch_size, args.static_selectivity, args.selector, args.kath)
+    prob_strategy = get_prob_strategy(args.prob_strategy, args.strategy)
+    fp_prob_strategy = get_prob_strategy(args.fp_prob_strategy, args.strategy)
 
     for trial in range(1, args.num_trials+1):
         seed = seeder.get_seed()
@@ -179,9 +194,12 @@ def main(args):
                                                     args.kath,
                                                     args.kath_strategy,
                                                     static_sample_size)
-        cmd = "python main.py "
-        cmd += "--prob-strategy={} ".format(args.prob_strategy)
-        cmd += "--fp-prob-strategy={} ".format(args.fp_prob_strategy)
+        if args.profile:
+            cmd = "python -m cProfile -o {}.prof main.py ".format(args.expname)
+        else:
+            cmd = "python main.py "
+        cmd += "--prob-strategy={} ".format(prob_strategy)
+        cmd += "--fp-prob-strategy={} ".format(fp_prob_strategy)
         cmd += "--prob-pow={} ".format(args.beta)
         cmd += "--max-history-len={} ".format(max_history_length)
         cmd += "--dataset={} ".format(args.dataset)
@@ -204,7 +222,7 @@ def main(args):
                 print("[Warning] Using StaticLR, overridding -g, -f")
             cmd += "--lr={} ".format(args.static_lr)
 
-        if args.nolog:
+        if get_nolog(args.nolog, args.profile):
             cmd += "--no-logging "
 
         if args.dataset == "imagenet":

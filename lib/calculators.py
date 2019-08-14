@@ -23,13 +23,15 @@ def get_probability_calculator(calculator_type,
         prob_transform = None
 
     if calculator_type == "vanilla":
-        probability_calculator = SelectProbabiltyCalculator(sampling_min,
-                                                            sampling_max,
-                                                            num_classes,
-                                                            device,
-                                                            prob_transform=prob_transform)
+        probability_calculator = BatchedSelectProbabiltyCalculator(sampling_min,
+                                                                   sampling_max,
+                                                                   num_classes,
+                                                                   device,
+                                                                   prob_transform=prob_transform)
+    elif calculator_type == "alwayson":
+        probability_calculator = BatchedAlwaysOnProbabilityCalculator()
     elif calculator_type == "relative":
-        probability_calculator = RelativeProbabilityCalculator(device,
+        probability_calculator = BatchedRelativeProbabilityCalculator(device,
                                                                prob_loss_fn,
                                                                sampling_min,
                                                                max_history_len,
@@ -51,6 +53,31 @@ def get_probability_calculator(calculator_type,
         print("Use prob-strategy in {vanilla, relative, hybrid, pscale, proportional}")
         exit()
     return probability_calculator
+
+class BatchedRelativeProbabilityCalculator(object):
+    def __init__(self, device, loss_fn, sampling_min, history_length, beta):
+        self.device = device
+        self.loss_fn = loss_fn
+        self.historical_losses = collections.deque(maxlen=history_length)
+        self.sampling_min = sampling_min
+        self.beta = beta
+
+    def update_history(self, losses):
+        losses_np = losses.cpu().data.numpy()
+        for loss in losses_np:
+            self.historical_losses.append(loss)
+
+    def calculate_probability(self, loss):
+        percentile = stats.percentileofscore(self.historical_losses, loss, kind="rank")
+        return math.pow(percentile / 100., self.beta)
+
+    def get_probability(self, examples):
+        outputs = torch.stack([example.output for example in examples])
+        targets = torch.stack([example.target for example in examples])
+        losses = self.loss_fn(reduce=False)(outputs, targets)
+        self.update_history(losses)
+        probs = [max(self.sampling_min, self.calculate_probability(loss)) for loss in losses]
+        return probs
 
 class RelativeProbabilityCalculator(object):
     def __init__(self, device, loss_fn, sampling_min, history_length, beta):
@@ -149,11 +176,15 @@ class ProportionalProbabiltyCalculator(object):
                                    min=self.sampling_min)
         return clamped_prob.item()
 
+class BatchedAlwaysOnProbabilityCalculator(object):
+    def get_probability(self, examples):
+        return [1] * len(examples)
+
 class HistoricalProbabilityCalculator(object):
     def __init__(self, calculator_type, std_multiplier=None, bp_probability_calculator=None):
         self.type = calculator_type
-        if self.type == "vanilla":
-            self.calculator = VanillaHistoricalCalculator()
+        if self.type == "alwayson":
+            self.calculator = BatchedAlwaysOnProbabilityCalculator()
         elif self.type == "mean":
             self.calculator = MeanHistoricalCalculator()
         elif self.type == "gp":
