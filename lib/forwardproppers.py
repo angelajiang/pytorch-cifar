@@ -33,9 +33,11 @@ class BaselineForwardpropper(object):
 
         # Run forward pass
         # Necessary if the network has been updated between last forward pass
-        self.net.eval()
-        with torch.no_grad():
-            outputs = self.net(data)
+
+        #self.net.eval()
+        #with torch.no_grad():
+        #    outputs = self.net(data)
+        outputs = self.net(data)
 
         losses = self.loss_fn(reduce=False)(outputs, targets)
         softmax_outputs = nn.Softmax()(outputs)
