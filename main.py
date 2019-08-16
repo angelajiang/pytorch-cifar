@@ -589,8 +589,8 @@ def main(args):
                                                                        args.pickle_prefix)
 
     if not args.no_logging:
-        trainer.on_forward_pass(logger.handle_forward_batch)
         trainer.on_backward_pass(logger.handle_backward_batch)
+        trainer.on_forward_pass(logger.handle_forward_batch)
         trainer.on_forward_mark(logger.handle_forward_mark)
         trainer.on_backward_pass(image_id_hist_logger.handle_backward_batch)
         trainer.on_backward_pass(loss_hist_logger.handle_backward_batch)

@@ -64,8 +64,7 @@ class BatchedRelativeProbabilityCalculator(object):
         self.beta = beta
 
     def update_history(self, losses):
-        losses_np = losses.cpu().data.numpy()
-        for loss in losses_np:
+        for loss in losses:
             self.historical_losses.append(loss)
 
     def calculate_probability(self, loss):
@@ -75,7 +74,7 @@ class BatchedRelativeProbabilityCalculator(object):
     def get_probability(self, examples):
         outputs = torch.stack([example.output for example in examples])
         targets = torch.stack([example.target for example in examples])
-        losses = self.loss_fn(reduce=False)(outputs, targets)
+        losses = self.loss_fn(reduce=False)(outputs, targets).cpu().data.numpy()
         self.update_history(losses)
         probs = [max(self.sampling_min, self.calculate_probability(loss)) for loss in losses]
         return probs

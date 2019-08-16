@@ -25,6 +25,18 @@ class BaselineForwardpropper(object):
         whole = len(batch)
         return torch.stack(chosen_targets)
 
+    def count_allocated_tensors(self):
+        import gc
+        count = 0
+        for obj in gc.get_objects():
+            try:
+                if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+                    #print(type(obj), obj.size())
+                    count += 1
+            except:
+                pass 
+        return count
+
     def forward_pass(self, batch):
 
         image_ids = self._get_chosen_image_ids(batch)

@@ -35,9 +35,16 @@ class UnboundedHistogram:
     def append(self, value):
         self.history.append(value)
 
+    def get_count(self, it, score):
+	count = 0
+	for i in it:
+            if i < score:
+	        count += 1
+	return count
+
     def percentile_of_score(self, score):
-        lower_scores = filter((float(score)).__ge__, self.history)
-        return len(lower_scores) * 100. / len(self.history)
+        num_lower_scores = self.get_count(self.history, score)
+        return num_lower_scores * 100. / len(self.history)
 
 def test():
 

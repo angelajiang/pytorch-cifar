@@ -188,6 +188,18 @@ class MemoizedTrainer(Trainer):
         for handler in self.forward_mark_handlers:
             handler(batch)
 
+    def count_allocated_tensors(self):
+        import gc
+        count = 0
+        for obj in gc.get_objects():
+            try:
+                if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+                    #print(type(obj), obj.size())
+                    count += 1
+            except:
+                pass 
+        return count
+
     def train_batch(self, candidate_forward_batch, final):
         '''
         TO TEST
