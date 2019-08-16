@@ -46,10 +46,6 @@ class BaselineBackpropper(object):
         probabilities = [example.get_sp(False) for example in batch if example.get_select(False)]
         return torch.tensor(probabilities, dtype=torch.float)
 
-    def _get_chosen_outputs_tensor(self, batch):
-        outputs = [example.output for example in batch if example.get_select(False)]
-        return torch.stack(outputs)
-
     def backward_pass(self, batch):
         self.net.train()
 
@@ -59,8 +55,7 @@ class BaselineBackpropper(object):
 
         # Run forward pass
         # Necessary if the network has been updated between last forward pass
-        #outputs = self.net(data) 
-        outputs = self._get_chosen_outputs_tensor(batch)
+        outputs = self.net(data) 
         losses = self.loss_fn(reduce=False)(outputs, targets)
 
         # Add for logging selected loss
@@ -98,10 +93,6 @@ class SamplingBackpropper(object):
         probabilities = [example.get_sp(False) for example in batch if example.get_select(False)]
         return torch.tensor(probabilities, dtype=torch.float)
 
-    def _get_chosen_outputs_tensor(self, batch):
-        outputs = [example.output for example in batch if example.get_select(False)]
-        return torch.stack(outputs)
-
     def backward_pass(self, batch):
         self.net.train()
 
@@ -111,8 +102,7 @@ class SamplingBackpropper(object):
 
         # Run forward pass
         # Necessary if the network has been updated between last forward pass
-        #outputs = self.net(data) 
-        outputs = self._get_chosen_outputs_tensor(batch)
+        outputs = self.net(data) 
         losses = self.loss_fn(reduce=False)(outputs, targets)
 
         # Scale each loss by image-specific select probs
@@ -158,10 +148,6 @@ class ReweightedBackpropper(object):
         probabilities = [prob_sum / len(batch) / example.get_sp(False) for example in batch]
         return torch.tensor(probabilities, dtype=torch.float)
 
-    def _get_chosen_outputs_tensor(self, batch):
-        outputs = [example.output for example in batch if example.get_select(False)]
-        return torch.stack(outputs)
-
     @property
     def total_norm(self):
         total_norm = 0
@@ -180,8 +166,7 @@ class ReweightedBackpropper(object):
 
         # Run forward pass
         # Necessary if the network has been updated between last forward pass
-        #outputs = self.net(data) 
-        outputs = self._get_chosen_outputs_tensor(batch)
+        outputs = self.net(data) 
         losses = self.loss_fn(reduce=False)(outputs, targets)
 
         # Scale each loss by image-specific select probs
