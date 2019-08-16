@@ -80,30 +80,33 @@ def test():
     ah.append(5)
     percentile = ah.percentile_of_score(3)
     #print(ah.history, 3, percentile)
-
     num_trials = 1000000
+
+    '''
     t = timeit.Timer('ah.append(1)',
                      setup='from __main__ import UnboundedHistogram; ah = UnboundedHistogram(4);',
                      )
     seconds_per_call = t.timeit(number = num_trials) / float(num_trials)
     print("{} appends, {} us".format(num_trials, seconds_per_call / 1000000.))
+    '''
 
-
-    num_appends = 1000000
-    l1 = range(num_appends)
+    l1 = range(num_trials)
     start = get_epochtime_us()
     for i in l1:
         ah.append(i)
     end = get_epochtime_us()
-    print("{} appends, {} us".format(num_appends, float(end - start) / num_appends))
+    print("{} appends, {} us".format(num_trials, float(end - start) / num_trials))
 
-    l = range(num_appends)
+    l = range(num_trials)
     random.shuffle(l)
     start = get_epochtime_us()
     for i in l:
         ah.percentile_of_score(i)
     end = get_epochtime_us()
-    print("{} get_percentile_of_scores, {} us".format(num_appends, float(end - start) / num_appends))
+    print("{} get_percentile_of_scores, {} us".format(num_trials, float(end - start) / num_trials))
+
+#if __name__ == "__main__":
+#    test()
 
 
 
