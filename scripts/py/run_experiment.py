@@ -13,7 +13,8 @@ def set_experiment_default_args(parser):
     parser.add_argument('--beta', default=3, type=float, help='beta on relative')
     parser.add_argument('--dataset', '-d', default="cifar10", type=str, help='mnist, cifar10, svhn, imagenet')
     parser.add_argument('--network', '-n', default="mobilenetv2", type=str, help='network architecture')
-    parser.add_argument('--batch-size', '-b', default=128, type=int, help='batch size')
+    parser.add_argument('--batch-size', '-b', default=512, type=int, help='batch size')
+    parser.add_argument('--forward-batch-size', '-b', default=128, type=int, help='batch size')
     parser.add_argument('--nolog', '-nl', dest='nolog', action='store_true',
                         help='turn off extra logging')
     parser.add_argument('--selector', dest='selector', default="sampling",
@@ -218,6 +219,7 @@ def main(args):
         cmd += "--sb-strategy={} ".format(args.selector)
         cmd += "--net={} ".format(args.network)
         cmd += "--batch-size={} ".format(args.batch_size)
+        cmd += "--forward-batch-size={} ".format(args.forward_batch_size)
         cmd += "--decay={} ".format(decay)
         cmd += "--max-num-backprops={} ".format(max_num_backprops)
         cmd += "--pickle-dir={} ".format(pickles_dir)
