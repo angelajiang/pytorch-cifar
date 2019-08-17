@@ -196,7 +196,7 @@ class MNIST(Dataset):
                            transforms.ToTensor(),
                            transforms.Normalize((0.1307,), (0.3081,))
                        ])),
-            batch_size=test_batch_size, shuffle=False, num_workers=0)
+            batch_size=test_batch_size, shuffle=False, num_workers=2)
 
         # Training set
         self.trainset = lib.mnist.MNIST('../data', train=True, download=True,
@@ -259,7 +259,7 @@ class SVHN(Dataset):
         self.testloader = torch.utils.data.DataLoader(testset,
                                                       batch_size=test_batch_size,
                                                       shuffle=False,
-                                                      num_workers=0)
+                                                      num_workers=2)
 
         # Training set
         if self.augment:
@@ -322,7 +322,7 @@ class ImageNet(Dataset):
         self.testloader = torch.utils.data.DataLoader(testset,
                                                       batch_size=test_batch_size,
                                                       shuffle=False,
-                                                      num_workers=0)
+                                                      num_workers=2)
 
         # Training set
         print("Performing data augmentation on ImageNet")

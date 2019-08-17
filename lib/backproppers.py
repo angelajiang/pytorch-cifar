@@ -101,7 +101,6 @@ class SamplingBackpropper(object):
         probabilities = self._get_chosen_probabilities_tensor(batch)
 
         # Run forward pass
-        # Necessary if the network has been updated between last forward pass
         outputs = self.net(data) 
         losses = self.loss_fn(reduce=False)(outputs, targets)
 
