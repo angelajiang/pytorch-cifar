@@ -208,10 +208,10 @@ class MemoizedTrainer(Trainer):
         candidate_forward_batch_examples = []
         for datum, image_id in zip(candidate_forward_batch[0], candidate_forward_batch[2]):
             e = self.dataset.examples[image_id.item()]
-            e.datum = datum
+            e.datum = datum             # ANUJ: image copy?
             candidate_forward_batch_examples.append(e)
 
-        batch_marked_for_fp = self.fp_selector.mark(candidate_forward_batch_examples)
+        batch_marked_for_fp = self.fp_selector.mark(candidate_forward_batch_examples) # ANUJ: in place?
         self.emit_forward_mark(batch_marked_for_fp)
         self.forward_queue += batch_marked_for_fp
         batch_to_fp = self.get_forward_batch(final)
@@ -219,7 +219,7 @@ class MemoizedTrainer(Trainer):
             candidate_backward_batch = self.forward_pass(batch_to_fp)
             self.emit_forward_pass(candidate_backward_batch)
 
-            batch_marked_for_bp = self.selector.mark(candidate_backward_batch)
+            batch_marked_for_bp = self.selector.mark(candidate_backward_batch) # ANUJ: in place?
             #print([a.get_select(False) for a in batch_marked_for_bp])
             self.backprop_queue += batch_marked_for_bp
             batch_to_bp = self.get_batch(final)
