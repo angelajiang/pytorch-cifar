@@ -184,7 +184,8 @@ class MNIST(Dataset):
 
         super(MNIST, self).__init__(split_size)
 
-        self.model = MNISTNet().to(self.device)
+        #self.model = MNISTNet().to(self.device)
+        self.model = MNISTNet()
 
         self.classes = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
 
