@@ -624,7 +624,7 @@ def main(args):
             trainloader = torch.utils.data.DataLoader(dataset.trainset,
                                                       batch_size=args.batch_size,
                                                       sampler=dataset_sampler,
-                                                      num_workers=0)
+                                                      num_workers=2)
 
             trainer.train(trainloader)
             logger.next_partition()
