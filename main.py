@@ -29,6 +29,8 @@ import lib.losses
 import lib.selectors
 import lib.trainer
 
+start_time_seconds = time.time()
+
 def count_tensors():
     num_tensors = 0
     for obj in gc.get_objects():
@@ -218,13 +220,15 @@ def mini_test(args,
             correct += predicted.eq(targets).sum().item()
 
     test_loss /= len(testloader.dataset)
-    print('test_debug,{},{},{},{:.6f},{:.6f},{}'.format(
+    print('test_debug,{},{},{},{:.6f},{:.6f},{},{}'.format(
                 epoch,
                 logger.global_num_backpropped,
                 logger.global_num_skipped,
                 test_loss,
                 100.*correct/total,
-                logger.global_num_skipped_fp))
+                logger.global_num_skipped_fp,
+                time.time() - start_time_seconds
+                ))
 
 def test(args,
          dataset,
@@ -232,7 +236,9 @@ def test(args,
          epoch,
          state,
          logger,
-         loss_fn):
+         loss_fn,
+         no_logging
+         ):
 
     net = dataset.model
     testloader = dataset.testloader
@@ -242,7 +248,7 @@ def test(args,
     correct = 0
     total = 0
 
-    if epoch % args.confidences_log_interval == 0:
+    if epoch % args.confidences_log_interval == 0 and not no_logging:
         write_target_confidences = True
     else:
         write_target_confidences = False
@@ -273,16 +279,17 @@ def test(args,
         state.write_summaries()
 
     test_loss /= len(testloader.dataset)
-    print('test_debug,{},{},{},{:.6f},{:.6f},{}'.format(
+    print('test_debug,{},{},{},{:.6f},{:.6f},{},{}'.format(
                 epoch,
                 logger.global_num_backpropped,
                 logger.global_num_skipped,
                 test_loss,
                 100.*correct/total,
-                logger.global_num_skipped_fp))
+                logger.global_num_skipped_fp,
+                time.time() - start_time_seconds))
 
     # Save checkpoint.
-    if args.checkpoint_interval:
+    if args.checkpoint_interval and not profile:
         if epoch % args.checkpoint_interval == 0:
             acc = 100.*correct/total
             print('Saving..')
@@ -374,8 +381,8 @@ def main(args):
         dataset = lib.datasets.CIFAR10(net,
                                        args.test_batch_size,
                                        args.augment,
-                                       #args.batch_size * 4,
-                                       None,
+                                       args.batch_size * 4,
+                                       #None,
                                        randomize_labels=args.randomize_labels)
     elif args.dataset == "mnist":
         dataset = lib.datasets.MNIST(
@@ -628,7 +635,7 @@ def main(args):
                 stopped = True
                 break
 
-        test(args, dataset, device, epoch, state, logger, loss_fn)
+        test(args, dataset, device, epoch, state, logger, loss_fn, args.no_logging)
         logger.next_epoch()
 
         if not args.no_logging:
