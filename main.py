@@ -105,7 +105,7 @@ def set_experiment_default_args(parser):
                         help='input batch size for training (default: 1)')
     parser.add_argument('--sampling-strategy', default="square", metavar='N',
                         help='Selective backprop sampling strategy among {nosquare, square}')
-    parser.add_argument('--sampling-min', type=float, default=1,
+    parser.add_argument('--sampling-min', type=float, default=0,
                         help='Minimum sampling rate for sampling strategy')
     parser.add_argument('--sampling-max', type=float, default=1,
                         help='Maximum sampling rate for sampling strategy')
@@ -113,6 +113,8 @@ def set_experiment_default_args(parser):
                         help='scale the select probability')
     parser.add_argument('--forwardlr', dest='forwardlr', action='store_true',
                         help='LR schedule based on forward passes')
+    parser.add_argument('--nofilter', dest='nofilter', action='store_true',
+                        help='Do not use backprop filter')
     parser.add_argument('--kath', '-k', dest='kath', action='store_true',
                         help='Use Katharopoulous18 mode')
     parser.add_argument('--kath-strategy', default='reweighted', type=str,
@@ -331,6 +333,7 @@ def print_config(args):
     print("config prob_pow {}".format(args.prob_pow))
     print("config max-history_len {}".format(args.max_history_len))
     print("config forwardlr {}".format(args.forwardlr))
+    print("config nofilter {}".format(args.nofilter))
     print("config kath {}".format(args.kath))
     print("config kath-strategy {}".format(args.kath_strategy))
 
@@ -506,6 +509,21 @@ def main(args):
                                              forwards=True)
 
     # Setup Trainer: Backpropper and Trainer
+    if args.nofilter:
+        backpropper = lib.backproppers.SamplingBackpropper(device,
+                                                           dataset.model,
+                                                           optimizer,
+                                                           loss_fn)
+        trainer = lib.trainer.NoFilterTrainer(device,
+                                              dataset.model,
+                                              dataset,
+                                              backpropper,
+                                              args.batch_size,
+                                              loss_fn,
+                                              max_num_backprops=args.max_num_backprops,
+                                              lr_schedule=args.lr_sched,
+                                              forwardlr=args.forwardlr)
+
     if args.kath:
         selector = None
         if args.kath_strategy == "reweighted":

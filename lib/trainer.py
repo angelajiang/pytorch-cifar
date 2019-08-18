@@ -148,6 +148,44 @@ class Trainer(object):
             return backprop_batch
         return None
 
+class NoFilterTrainer(Trainer):
+    def __init__(self,
+                 device,
+                 net,
+                 dataset,
+                 backpropper,
+                 bp_batch_size,
+                 loss_fn,
+                 max_num_backprops=float('inf'),
+                 lr_schedule=None,
+                 forwardlr=False):
+
+        super(NoFilterTrainer, self).__init__(device,
+                                net,
+                                dataset,
+                                None,
+                                None,
+                                bp_batch_size,
+                                loss_fn,
+                                max_num_backprops,
+                                lr_schedule,
+                                forwardlr)
+
+    def train_batch(self, candidate_forward_batch, final):
+        '''
+        TO TEST
+        '''
+        # Transform candidate forward_batch into examples
+        for datum, image_id in zip(candidate_forward_batch[0], candidate_forward_batch[2]):
+            e = self.dataset.examples[image_id.item()]
+            e.datum = datum             # ANUJ: image copy?
+            e.set_select(True, False)
+            self.backprop_queue.append(e)
+        batch_to_bp = self.get_batch(final)
+        if batch_to_bp:
+            annotated_backward_batch = self.backpropper.backward_pass(batch_to_bp)
+            self.emit_backward_pass(annotated_backward_batch) 
+
 class MemoizedTrainer(Trainer):
     def __init__(self,
                  device,
