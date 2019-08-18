@@ -48,6 +48,9 @@ class Trainer(object):
     def on_backward_pass(self, handler):
         self.backward_pass_handlers.append(handler)
 
+    def on_forward_mark(self, handler):
+        pass
+
     def emit_forward_pass(self, batch):
         for handler in self.forward_pass_handlers:
             handler(batch)
@@ -164,7 +167,7 @@ class NoFilterTrainer(Trainer):
                                 net,
                                 dataset,
                                 None,
-                                None,
+                                backpropper,
                                 bp_batch_size,
                                 loss_fn,
                                 max_num_backprops,
@@ -178,8 +181,9 @@ class NoFilterTrainer(Trainer):
         # Transform candidate forward_batch into examples
         for datum, image_id in zip(candidate_forward_batch[0], candidate_forward_batch[2]):
             e = self.dataset.examples[image_id.item()]
-            e.datum = datum             # ANUJ: image copy?
+            e.datum = datum             # OPT: image copy?
             e.set_select(True, False)
+            e.set_sp(1., False)
             self.backprop_queue.append(e)
         batch_to_bp = self.get_batch(final)
         if batch_to_bp:
@@ -246,10 +250,10 @@ class MemoizedTrainer(Trainer):
         candidate_forward_batch_examples = []
         for datum, image_id in zip(candidate_forward_batch[0], candidate_forward_batch[2]):
             e = self.dataset.examples[image_id.item()]
-            e.datum = datum             # ANUJ: image copy?
+            e.datum = datum             # OPT: image copy?
             candidate_forward_batch_examples.append(e)
 
-        batch_marked_for_fp = self.fp_selector.mark(candidate_forward_batch_examples) # ANUJ: in place?
+        batch_marked_for_fp = self.fp_selector.mark(candidate_forward_batch_examples) # OPT: in place?
         self.emit_forward_mark(batch_marked_for_fp)
         self.forward_queue += batch_marked_for_fp
         batch_to_fp = self.get_forward_batch(final)
@@ -257,7 +261,7 @@ class MemoizedTrainer(Trainer):
             candidate_backward_batch = self.forward_pass(batch_to_fp)
             self.emit_forward_pass(candidate_backward_batch)
 
-            batch_marked_for_bp = self.selector.mark(candidate_backward_batch) # ANUJ: in place?
+            batch_marked_for_bp = self.selector.mark(candidate_backward_batch) # OPT: in place?
             #print([a.get_select(False) for a in batch_marked_for_bp])
             self.backprop_queue += batch_marked_for_bp
             batch_to_bp = self.get_batch(final)

@@ -1,6 +1,7 @@
 import torch
 import time
 import torch.nn as nn
+import lib.sb_util
 
 class PrimedBackpropper(object):
     def __init__(self, initial, final, initial_num_images):
@@ -57,10 +58,21 @@ class BaselineBackpropper(object):
         # Necessary if the network has been updated between last forward pass
         outputs = self.net(data) 
         losses = self.loss_fn(reduce=False)(outputs, targets)
+        softmax_outputs = nn.Softmax()(outputs)
+        _, predicted = outputs.max(1)
+        is_corrects = predicted.eq(targets)
 
         # Add for logging selected loss
-        for example, loss in zip(batch, losses):
+        for example, loss, output, softmax_output, is_correct in zip(batch,
+                                                                     losses,
+                                                                     outputs,
+                                                                     softmax_outputs,
+                                                                     is_corrects):
             example.backpropped_loss = loss.item()
+            example.loss = loss
+            example.output = output
+            example.softmax_output = softmax_output
+            example.correct = is_correct.item()
 
         # Reduce loss
         loss = losses.mean()
@@ -103,13 +115,24 @@ class SamplingBackpropper(object):
         # Run forward pass
         outputs = self.net(data) 
         losses = self.loss_fn(reduce=False)(outputs, targets)
+        softmax_outputs = nn.Softmax()(outputs)             # OPT: not necessary when logging is off
+        _, predicted = outputs.max(1)
+        is_corrects = predicted.eq(targets)
 
-        # Scale each loss by image-specific select probs
-        #losses = torch.div(losses, probabilities.to(self.device))
+        #lib.sb_util.print_random_points_in_tensor_unroll1(outputs)
+        #exit()
 
         # Add for logging selected loss
-        for example, loss in zip(batch, losses):
+        for example, loss, output, softmax_output, is_correct in zip(batch,
+                                                                     losses,
+                                                                     outputs,
+                                                                     softmax_outputs,
+                                                                     is_corrects):
             example.backpropped_loss = loss.item()
+            example.loss = loss
+            example.output = output
+            example.softmax_output = softmax_output
+            example.correct = is_correct.item()
 
         # Reduce loss
         loss = losses.mean()

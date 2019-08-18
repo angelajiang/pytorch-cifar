@@ -524,7 +524,7 @@ def main(args):
                                               lr_schedule=args.lr_sched,
                                               forwardlr=args.forwardlr)
 
-    if args.kath:
+    elif args.kath:
         selector = None
         if args.kath_strategy == "reweighted":
             final_backpropper = lib.backproppers.ReweightedBackpropper(device,
