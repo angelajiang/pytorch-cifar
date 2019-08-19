@@ -188,6 +188,7 @@ class NoFilterTrainer(Trainer):
         batch_to_bp = self.get_batch(final)
         if batch_to_bp:
             annotated_backward_batch = self.backpropper.backward_pass(batch_to_bp)
+            self.emit_forward_pass(annotated_backward_batch)
             self.emit_backward_pass(annotated_backward_batch) 
 
 class MemoizedTrainer(Trainer):

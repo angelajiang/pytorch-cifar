@@ -199,6 +199,7 @@ def mini_test(args,
               epoch,
               state,
               logger,
+              trainer,
               loss_fn):
 
     net = dataset.model
@@ -224,8 +225,8 @@ def mini_test(args,
     test_loss /= len(testloader.dataset)
     print('test_debug,{},{},{},{:.6f},{:.6f},{},{}'.format(
                 epoch,
-                logger.global_num_backpropped,
-                logger.global_num_skipped,
+                trainer.global_num_backpropped,
+                trainer.global_num_forwards - trainer.global_num_backpropped, # num skipped bp
                 test_loss,
                 100.*correct/total,
                 logger.global_num_skipped_fp,
@@ -238,6 +239,7 @@ def test(args,
          epoch,
          state,
          logger,
+         trainer,
          loss_fn,
          no_logging
          ):
@@ -276,15 +278,15 @@ def test(args,
                 state.update_target_confidences(epoch,
                                                 confidences,
                                                 results,
-                                                logger.global_num_backpropped)
+                                                trainer.global_num_backpropped)
     if write_target_confidences:
         state.write_summaries()
 
     test_loss /= len(testloader.dataset)
     print('test_debug,{},{},{},{:.6f},{:.6f},{},{}'.format(
                 epoch,
-                logger.global_num_backpropped,
-                logger.global_num_skipped,
+                trainer.global_num_backpropped,
+                trainer.global_num_forwards - trainer.global_num_backpropped, # num skipped bp
                 test_loss,
                 100.*correct/total,
                 logger.global_num_skipped_fp,
@@ -299,8 +301,8 @@ def test(args,
                 'net': net.state_dict(),
                 'acc': acc,
                 'epoch': epoch,
-                'num_backpropped': logger.global_num_backpropped,
-                'num_skipped': logger.global_num_skipped,
+                'num_backpropped': trainer.global_num_backpropped,
+                'num_skipped': trainer.global_num_forwards - trainer.global_num_backpropped, # num skipped bp
                 'dataset': dataset,
             }
             checkpoint_dir = os.path.join(args.pickle_dir, "checkpoint")
@@ -384,8 +386,8 @@ def main(args):
         dataset = lib.datasets.CIFAR10(net,
                                        args.test_batch_size,
                                        args.augment,
-                                       args.batch_size * 4,
-                                       #None,
+                                       #args.batch_size * 4,
+                                       None,
                                        randomize_labels=args.randomize_labels)
     elif args.dataset == "mnist":
         dataset = lib.datasets.MNIST(
@@ -635,7 +637,7 @@ def main(args):
 
             if not args.no_logging:
                 if logger.global_num_backpropped - last_global_num_backpropped > eval_every_n: 
-                    mini_test(args, dataset, device, epoch, state, logger, loss_fn)
+                    mini_test(args, dataset, device, epoch, state, logger, trainer, loss_fn)
                     last_global_num_backpropped = logger.global_num_backpropped
 
             dataset_sampler = torch.utils.data.SubsetRandomSampler(dataset_split)
@@ -653,7 +655,7 @@ def main(args):
                 stopped = True
                 break
 
-        test(args, dataset, device, epoch, state, logger, loss_fn, args.no_logging)
+        test(args, dataset, device, epoch, state, logger, trainer, loss_fn, args.no_logging)
         logger.next_epoch()
 
         if not args.no_logging:
