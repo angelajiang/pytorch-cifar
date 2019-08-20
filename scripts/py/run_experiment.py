@@ -57,9 +57,10 @@ def get_lr_sched_path(src_dir, dataset, gradual, fast):
     return path
 
 def get_max_num_backprops(lr_filename, profile):
-    if profile:
-        print("[WARNING] Profiling turned on. Overriding max_num_backprops to 5000000")
-        return 5000000
+    #if profile:
+    #    num_profile_backprops = 2000000
+    #    print("[WARNING] Profiling turned on. Overriding max_num_backprops to {}".format(num_profile_backprops))
+    #    return num_profile_backprops
     with open(lr_filename) as f:
         data = json.load(f)
     last_lr_jump = max([int(k) for k in data.keys()])
@@ -119,7 +120,7 @@ def get_output_files(sb_selector,
     if sb_selector == "topk":
         max_history_length = static_sample_size
 
-    output_file = "{}_{}_{}_{}_{}_{}_{}_trial{}_seed{}_v3".format(sb_selector,
+    output_file = "{}_{}_{}_{}_{}_{}_{}_trial{}_seed{}_v4".format(sb_selector,
                                                                   dataset,
                                                                   net,
                                                                   sampling_min,
@@ -194,7 +195,7 @@ def main(args):
                                                     args.kath_strategy,
                                                     static_sample_size)
         if args.profile:
-            cmd = "python -m cProfile -o {}.prof main.py ".format(args.expname)
+            cmd = "python -m cProfile -o profs/{}.prof main.py ".format(args.expname)
         else:
             cmd = "python main.py "
         cmd += "--prob-strategy={} ".format(args.prob_strategy)
@@ -225,6 +226,9 @@ def main(args):
         if get_nolog(args.nolog, args.profile):
             cmd += "--no-logging "
 
+        if args.forwardlr:
+            cmd += "--forwardlr "
+
         if args.dataset == "imagenet":
             cmd += "--datadir={} ".format(get_imagenet_datadir())
 
@@ -238,7 +242,7 @@ def main(args):
         if args.strategy == "kath":
             if args.selector == "topk":
                 print("[Warning] Running Kath, overridding --selector")
-            assert(args.kath_strategy in ["reweighting", "biased", "baseline"])
+            assert(args.kath_strategy in ["reweighted", "biased", "baseline"])
             cmd += "--kath "
             cmd += "--kath-strategy={} ".format(args.kath_strategy)
             cmd += "--sample-size={} ".format(static_sample_size)
