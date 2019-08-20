@@ -382,7 +382,7 @@ class VariancesByAverageProbabilityByImageLogger(object):
 
 class Logger(object):
 
-    def __init__(self, log_interval=1, epoch=0, num_backpropped=0, num_skipped=0, num_skipped_fp=0, num_forwards=0):
+    def __init__(self, log_interval=1, epoch=0, num_backpropped=0, num_skipped=0, num_skipped_fp=0, num_forwards=0, start_time_seconds=None):
         self.current_epoch = epoch
         self.current_batch = 0
         self.log_interval = log_interval
@@ -397,6 +397,11 @@ class Logger(object):
         self.partition_num_backpropped = 0
         self.partition_num_skipped = 0
         self.partition_num_correct = 0
+
+        if start_time_seconds is None:
+            self.start_time_seconds = time.time()
+        else:
+            self.start_time_seconds = start_time_seconds
 
     def next_epoch(self):
         self.current_epoch += 1
@@ -419,14 +424,15 @@ class Logger(object):
 
     @property
     def train_debug(self):
-        return 'train_debug,{},{},{},{},{:.6f},{},{:.6f}'.format(
+        return 'train_debug,{},{},{},{},{:.6f},{},{:.6f},{:4f}'.format(
             self.current_epoch,
             self.global_num_backpropped,
             self.global_num_skipped,
             self.global_num_skipped_fp,
             self.average_partition_backpropped_loss,
             self.global_num_forwards,
-            self.partition_accuracy)
+            self.partition_accuracy,
+            time.time() - self.start_time_seconds)
 
     def next_partition(self):
         self.partition_loss = 0

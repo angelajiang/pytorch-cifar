@@ -538,7 +538,7 @@ def main(args):
                                                                      dataset.model,
                                                                      optimizer,
                                                                      loss_fn)
-        backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.SampilngBackpropper(device,
+        backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.SamplingBackpropper(device,
                                                                                               dataset.model,
                                                                                               optimizer,
                                                                                               loss_fn),
@@ -604,7 +604,9 @@ def main(args):
     logger = lib.loggers.Logger(log_interval = args.log_interval,
                                 epoch=start_epoch,
                                 num_backpropped=start_num_backpropped,
-                                num_skipped=start_num_skipped)
+                                num_skipped=start_num_skipped,
+                                start_time_seconds = start_time_seconds
+                                )
     image_id_hist_logger = lib.loggers.ImageIdHistLogger(args.pickle_dir,
                                                          args.pickle_prefix,
                                                          dataset.num_training_images,
