@@ -117,7 +117,7 @@ def set_experiment_default_args(parser):
                         help='Do not use backprop filter')
     parser.add_argument('--kath', '-k', dest='kath', action='store_true',
                         help='Use Katharopoulous18 mode')
-    parser.add_argument('--kath-strategy', default='reweighted', type=str,
+    parser.add_argument('--kath-strategy', default='biased', type=str,
                         help='Katharopoulous18 mode in {biased, reweighted, baseline}')
 
     # Logging and checkpointing interval
@@ -342,6 +342,7 @@ def print_config(args):
 def main(args):
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    assert device == "cuda"
 
     set_random_seeds(args.seed)
 

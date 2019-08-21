@@ -147,7 +147,7 @@ class CIFAR10(Dataset):
         self.testloader = torch.utils.data.DataLoader(testset,
                                                       batch_size=test_batch_size,
                                                       shuffle=False,
-                                                      num_workers=0)
+                                                      num_workers=2)
 
         # Training set
         if self.augment:
