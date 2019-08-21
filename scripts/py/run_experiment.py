@@ -40,7 +40,7 @@ def set_experiment_default_args(parser):
     parser.add_argument('--src-dir', default="./", type=str, help='/path/to/pytorch-cifar')
     parser.add_argument('--dst-dir', default="/proj/BigLearning/ahjiang/output/", type=str, help='/path/to/dst/dir')
 
-    parser.add_argument('--kath-strategy', default="reweighted", type=str, help='Katharopoulos18')
+    parser.add_argument('--kath-strategy', default="biased", type=str, help='Katharopoulos18')
     parser.add_argument('--static-selectivity', default=4, type=int, help='Scale of superset')
 
     return parser
