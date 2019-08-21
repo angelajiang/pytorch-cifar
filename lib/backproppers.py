@@ -46,15 +46,6 @@ class BaselineBackpropper(object):
         probabilities = [example.select_probability for example in batch if example.select]
         return torch.tensor(probabilities, dtype=torch.float)
 
-    @property
-    def total_norm(self):
-        total_norm = 0
-	for p in self.net.parameters():
-            param_norm = p.grad.data.norm(2)
-            total_norm += param_norm.item() ** 2
-        total_norm = total_norm ** (1. / 2)
-        return total_norm
-
     def backward_pass(self, batch):
         self.net.train()
 
@@ -78,8 +69,6 @@ class BaselineBackpropper(object):
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-
-        print("total_norm {}".format(self.total_norm))
 
         return batch
 
@@ -104,15 +93,6 @@ class SamplingBackpropper(object):
         probabilities = [example.select_probability for example in batch if example.select]
         return torch.tensor(probabilities, dtype=torch.float)
 
-    @property
-    def total_norm(self):
-        total_norm = 0
-	for p in self.net.parameters():
-            param_norm = p.grad.data.norm(2)
-            total_norm += param_norm.item() ** 2
-        total_norm = total_norm ** (1. / 2)
-        return total_norm
-
     def backward_pass(self, batch):
         self.net.train()
 
@@ -121,16 +101,26 @@ class SamplingBackpropper(object):
         probabilities = self._get_chosen_probabilities_tensor(batch)
 
         # Run forward pass
-        # Necessary if the network has been updated between last forward pass
         outputs = self.net(data) 
         losses = self.loss_fn(reduce=False)(outputs, targets)
+        softmax_outputs = nn.Softmax()(outputs)             # OPT: not necessary when logging is off
+        _, predicted = outputs.max(1)
+        is_corrects = predicted.eq(targets)
 
         # Scale each loss by image-specific select probs
         #losses = torch.div(losses, probabilities.to(self.device))
 
         # Add for logging selected loss
-        for example, loss in zip(batch, losses):
+        for example, loss, output, softmax_output, is_correct in zip(batch,
+                                                                     losses,
+                                                                     outputs,
+                                                                     softmax_outputs,
+                                                                     is_corrects):
             example.backpropped_loss = loss.item()
+            example.loss = loss
+            example.output = output
+            example.softmax_output = softmax_output
+            example.correct = is_correct.item()
 
         # Reduce loss
         loss = losses.mean()
@@ -139,8 +129,6 @@ class SamplingBackpropper(object):
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-
-        print("total_norm {}".format(self.total_norm))
 
         return batch
 
@@ -205,8 +193,6 @@ class ReweightedBackpropper(object):
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-
-        print("total_norm {}".format(self.total_norm))
 
         return batch
 
