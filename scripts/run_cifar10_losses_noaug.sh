@@ -26,6 +26,8 @@ PICKLE_DIR=$OUTPUT_DIR/pickles
 mkdir $OUTPUT_DIR
 mkdir $PICKLE_DIR
 
+git rev-parse HEAD &> $OUTPUT_DIR/sha
+
 for i in `seq 1 $NUM_TRIALS`
 do
 
@@ -34,7 +36,7 @@ do
 
   echo $OUTPUT_DIR/$OUTPUT_FILE
 
-  python main.py \
+  time python main.py \
     --sb-strategy=$SAMPLING_STRATEGY \
     --net=$NET \
     --batch-size=$BATCH_SIZE \

@@ -25,7 +25,7 @@ do
 
   echo $OUTPUT_DIR/$OUTPUT_FILE
 
-  python main.py \
+  time python main.py \
     --sb-strategy=sampling \
     --net=$NET \
     --batch-size=$BATCH_SIZE \
