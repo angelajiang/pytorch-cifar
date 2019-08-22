@@ -34,7 +34,7 @@ class SelectiveBackpropper:
         loss_fn = nn.CrossEntropyLoss
         prob_pow = 3
         sample_size = 0 # only needed for kath, topk, lowk
-        log = True
+        log = False
 
         # Params for resuming from checkpoint
         start_epoch = 0
