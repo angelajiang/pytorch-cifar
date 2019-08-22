@@ -24,7 +24,9 @@ class SelectiveBackpropper:
 
         ## Hardcoded params
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        num_images_to_prime = num_training_images
+        self.num_training_images = num_training_images
+        num_images_to_prime = self.num_training_images
+
         log_interval = 1
         sampling_max = 1
         max_history_len = 1024
@@ -41,17 +43,19 @@ class SelectiveBackpropper:
         kath_oversampling_rate = 4
 
         if strategy == "kath":
+            print("Make sure that kath strategy is consistent.")
+            exit()
             self.selector = None
             final_backpropper = backproppers.BaselineBackpropper(device,
-                                                                     model,
-                                                                     optimizer,
-                                                                     loss_fn)
+                                                                 model,
+                                                                 optimizer,
+                                                                 loss_fn)
             self.backpropper = backproppers.PrimedBackpropper(backproppers.BaselineBackpropper(device,
                                                                                                   model,
                                                                                                   optimizer,
                                                                                                   loss_fn),
-                                                             final_backpropper,
-                                                             num_images_to_prime)
+                                                              final_backpropper,
+                                                              num_images_to_prime)
             self.trainer = trainer.KathTrainer(device,
                                                model,
                                                self.backpropper,
@@ -114,4 +118,5 @@ class SelectiveBackpropper:
         self.logger.next_epoch()
 
     def next_partition(self):
+        self.selector.next_partition(self.num_training_images)
         self.logger.next_partition()
