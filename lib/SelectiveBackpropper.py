@@ -18,12 +18,13 @@ class SelectiveBackpropper:
                  batch_size,
                  lr_sched,
                  num_classes,
+                 num_training_images,
                  forwardlr,
-                 kath):
+                 strategy):
 
         ## Hardcoded params
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        num_images_to_prime = 50000
+        num_images_to_prime = num_training_images
         log_interval = 1
         sampling_max = 1
         max_history_len = 1024
@@ -31,13 +32,14 @@ class SelectiveBackpropper:
         loss_fn = nn.CrossEntropyLoss
         prob_pow = 3
         sample_size = 0 # only needed for kath, topk, lowk
+        log = False
         # Params for resuming from checkpoint
         start_epoch = 0
         start_num_backpropped = 0
         start_num_skipped = 0
         kath_oversampling_rate = 4
 
-        if kath:
+        if strategy == "kath":
             self.selector = None
             final_backpropper = backproppers.BaselineBackpropper(device,
                                                                      model,
@@ -57,6 +59,18 @@ class SelectiveBackpropper:
                                                loss_fn,
                                                lr_sched,
                                                forwardlr=forwardlr)
+        elif strategy == "nofilter":
+            self.backpropper = backproppers.BaselineBackpropper(device,
+                                                                model,
+                                                                optimizer,
+                                                                loss_fn)
+            self.trainer = trainer.NoFilterTrainer(device,
+                                                   model,
+                                                   self.backpropper,
+                                                   batch_size,
+                                                   loss_fn,
+                                                   lr_sched,
+                                                   forwardlr=forwardlr)
         else:
 
             probability_calculator = calculators.get_probability_calculator("relative",
@@ -98,12 +112,9 @@ class SelectiveBackpropper:
                                      num_skipped=start_num_skipped,
                                      start_time_seconds = start_time_seconds)
 
-        self.trainer.on_forward_pass(self.logger.handle_forward_batch)
-        self.trainer.on_backward_pass(self.logger.handle_backward_batch)
-
-        #self.backpropper.next_partition(50000)
-        #if self.selector:
-        #    self.selector.next_partition(50000)
+        if log:
+            self.trainer.on_forward_pass(self.logger.handle_forward_batch)
+            self.trainer.on_backward_pass(self.logger.handle_backward_batch)
 
     def next_epoch(self):
         self.logger.next_epoch()

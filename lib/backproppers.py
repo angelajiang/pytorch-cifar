@@ -58,9 +58,21 @@ class BaselineBackpropper(object):
         outputs = self.net(data) 
         losses = self.loss_fn(reduce=False)(outputs, targets)
 
+	softmax_outputs = nn.Softmax()(outputs)
+        _, predicted = outputs.max(1)
+        is_corrects = predicted.eq(targets)
+
         # Add for logging selected loss
-        for example, loss in zip(batch, losses):
+        for example, loss, output, softmax_output, is_correct in zip(batch,
+                                                                     losses,
+                                                                     outputs,
+                                                                     softmax_outputs,
+                                                                     is_corrects):
             example.backpropped_loss = loss.item()
+            example.loss = loss.item()
+            example.output = output
+            example.softmax_output = softmax_output
+            example.correct = is_correct.item()
 
         # Reduce loss
         loss = losses.mean()

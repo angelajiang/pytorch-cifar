@@ -14,9 +14,12 @@ class Example(object):
                  datum=None,
                  image_id=None,
                  select_probability=None):
-        self.loss = loss.detach()
-        self.output = output.detach()
-        self.softmax_output = softmax_output.detach()
+        if loss is not None:
+            self.loss = loss.detach()
+        if output is not None:
+            self.output = output.detach()
+        if softmax_output is not None:
+            self.softmax_output = softmax_output.detach()
         self.target = target.detach()
         self.datum = datum.detach()
         self.image_id = image_id.detach()
@@ -172,9 +175,8 @@ class NoFilterTrainer(Trainer):
     def __init__(self,
                  device,
                  net,
-                 dataset,
                  backpropper,
-                 bp_batch_size,
+                 batch_size,
                  loss_fn,
                  max_num_backprops=float('inf'),
                  lr_schedule=None,
@@ -182,31 +184,30 @@ class NoFilterTrainer(Trainer):
 
         super(NoFilterTrainer, self).__init__(device,
                                 net,
-                                dataset,
                                 None,
                                 backpropper,
-                                bp_batch_size,
+                                batch_size,
                                 loss_fn,
                                 max_num_backprops,
                                 lr_schedule,
                                 forwardlr)
 
-    def train_batch(self, candidate_forward_batch, final):
-        '''
-        TO TEST
-        '''
-        # Transform candidate forward_batch into examples
-        for datum, image_id in zip(candidate_forward_batch[0], candidate_forward_batch[2]):
-            e = self.dataset.examples[image_id.item()]
-            e.datum = datum             # OPT: image copy?
-            e.set_select(True, False)
-            e.set_sp(1., False)
-            self.backprop_queue.append(e)
-        batch_to_bp = self.get_batch(final)
-        if batch_to_bp:
-            annotated_backward_batch = self.backpropper.backward_pass(batch_to_bp)
-            self.emit_forward_pass(annotated_backward_batch)
-            self.emit_backward_pass(annotated_backward_batch) 
+    def train_batch(self, batch, final):
+        annotated_forward_batch = self.create_example_batch(*batch)
+        self.backprop_queue += annotated_forward_batch
+        backprop_batch = self.get_batch(final)
+        if backprop_batch:
+            annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
+            self.emit_backward_pass(annotated_backward_batch)
+
+    def create_example_batch(self, data, targets, image_ids):
+        data, targets = data.to(self.device), targets.to(self.device)
+        batch = []
+        for target, datum, image_id in zip(targets, data, image_ids):
+            example = Example(target=target, datum=datum, image_id=image_id, select_probability=1)
+            example.select = True
+            batch.append(example)
+        return batch
 
 class MemoizedTrainer(Trainer):
     def __init__(self,
