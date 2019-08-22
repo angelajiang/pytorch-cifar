@@ -42,6 +42,7 @@ class SelectiveBackpropper:
         start_num_skipped = 0
         kath_oversampling_rate = 4
 
+        self.selector = None
         if strategy == "kath":
             print("Make sure that kath strategy is consistent.")
             exit()
@@ -110,13 +111,14 @@ class SelectiveBackpropper:
                                      num_skipped=start_num_skipped,
                                      start_time_seconds = start_time_seconds)
 
+        self.trainer.on_backward_pass(self.logger.handle_backward_batch)
         if log:
             self.trainer.on_forward_pass(self.logger.handle_forward_batch)
-            self.trainer.on_backward_pass(self.logger.handle_backward_batch)
 
     def next_epoch(self):
         self.logger.next_epoch()
 
     def next_partition(self):
-        self.selector.next_partition(self.num_training_images)
+        if self.selector is not None:
+            self.selector.next_partition(self.num_training_images)
         self.logger.next_partition()

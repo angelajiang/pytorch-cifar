@@ -454,14 +454,14 @@ class Logger(object):
         self.global_num_backpropped += num_backpropped
         self.global_num_skipped += num_skipped
 
-        self.partition_num_backpropped += num_backpropped
-        self.partition_num_skipped += num_skipped
-        self.partition_backpropped_loss += sum([example.backpropped_loss
-                                                for example in batch
-                                                if example.backpropped_loss])
-        self.partition_num_correct += sum([int(example.is_correct) for example in batch])
+        #self.partition_num_backpropped += num_backpropped
+        #self.partition_num_skipped += num_skipped
+        #self.partition_backpropped_loss += sum([example.backpropped_loss
+        #                                        for example in batch
+        #                                        if example.backpropped_loss])
+        #self.partition_num_correct += sum([int(example.is_correct) for example in batch])
 
-        self.write()
+        #self.write()
 
     def write(self):
         if self.current_batch % self.log_interval == 0:
