@@ -32,7 +32,8 @@ class SelectiveBackpropper:
         loss_fn = nn.CrossEntropyLoss
         prob_pow = 3
         sample_size = 0 # only needed for kath, topk, lowk
-        log = False
+        log = True
+
         # Params for resuming from checkpoint
         start_epoch = 0
         start_num_backpropped = 0
@@ -72,7 +73,6 @@ class SelectiveBackpropper:
                                                    lr_sched,
                                                    forwardlr=forwardlr)
         else:
-
             probability_calculator = calculators.get_probability_calculator("relative",
                                                                             device,
                                                                             prob_loss_fn,
@@ -86,17 +86,11 @@ class SelectiveBackpropper:
                                                    num_images_to_prime,
                                                    sample_size)
 
-            final_backpropper = backproppers.SamplingBackpropper(device,
-                                                                 model,
-                                                                 optimizer,
-                                                                 loss_fn)
+            self.backpropper = backproppers.SamplingBackpropper(device,
+                                                                model,
+                                                                optimizer,
+                                                                loss_fn)
 
-            self.backpropper = backproppers.PrimedBackpropper(backproppers.BaselineBackpropper(device,
-                                                                                               model,
-                                                                                               optimizer,
-                                                                                               loss_fn),
-                                                              final_backpropper,
-                                                              num_images_to_prime)
             self.trainer = trainer.Trainer(device,
                                            model,
                                            self.selector,

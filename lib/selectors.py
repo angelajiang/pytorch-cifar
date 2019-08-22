@@ -109,8 +109,8 @@ class SamplingSelector(object):
         return draw < select_probability
 
     def mark(self, forward_pass_batch):
-        for example in forward_pass_batch:
-            prob = self.get_select_probability(example)
+        probs = self.get_select_probability(forward_pass_batch)
+        for example, prob in zip(forward_pass_batch, probs):
             example.select_probability = prob
             example.select = self.select(example)
         return forward_pass_batch
