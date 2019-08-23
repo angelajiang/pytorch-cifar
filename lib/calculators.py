@@ -33,10 +33,14 @@ def get_probability_calculator(calculator_type,
         probability_calculator = BatchedAlwaysOnProbabilityCalculator()
     elif calculator_type == "relative":
         probability_calculator = BatchedRelativeProbabilityCalculator(device,
-                                                               prob_loss_fn,
-                                                               sampling_min,
-                                                               max_history_len,
-                                                               prob_pow)
+                                                                      prob_loss_fn,
+                                                                      sampling_min,
+                                                                      max_history_len,
+                                                                      prob_pow)
+    elif calculator_type == "random":
+        probability_calculator = BatchedRandomProbabilityCalculator(device,
+                                                                    sampling_min,
+                                                                    prob_pow)
     elif calculator_type == "hybrid":
         probability_calculator = HybridProbabilityCalculator(device,
                                                              prob_loss_fn,
@@ -54,6 +58,20 @@ def get_probability_calculator(calculator_type,
         print("Use prob-strategy in {vanilla, relative, hybrid, pscale, proportional}")
         exit()
     return probability_calculator
+
+class BatchedRandomProbabilityCalculator(object):
+    def __init__(self, device, sampling_min, beta):
+        self.device = device
+        self.sampling_min = sampling_min
+        self.beta = beta
+
+    def calculate_probability(self,):
+        random_percentile = np.random.uniform(0, 1)
+        return math.pow(random_percentile, self.beta)
+
+    def get_probability(self, examples):
+        probs = [max(self.sampling_min, self.calculate_probability()) for i in range(len(examples))]
+        return probs
 
 class BatchedRelativeProbabilityCalculator(object):
     def __init__(self, device, loss_fn, sampling_min, history_length, beta):

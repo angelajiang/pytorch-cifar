@@ -20,7 +20,8 @@ class SelectiveBackpropper:
                  num_classes,
                  num_training_images,
                  forwardlr,
-                 strategy):
+                 strategy,
+                 calculator="relative"):
 
         ## Hardcoded params
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -34,7 +35,6 @@ class SelectiveBackpropper:
         loss_fn = nn.CrossEntropyLoss
         prob_pow = 3
         sample_size = 0 # only needed for kath, topk, lowk
-        log = False
 
         # Params for resuming from checkpoint
         start_epoch = 0
@@ -78,7 +78,7 @@ class SelectiveBackpropper:
                                                    lr_schedule=lr_sched,
                                                    forwardlr=forwardlr)
         else:
-            probability_calculator = calculators.get_probability_calculator("relative",
+            probability_calculator = calculators.get_probability_calculator(calculator,
                                                                             device,
                                                                             prob_loss_fn,
                                                                             sampling_min,
@@ -112,8 +112,7 @@ class SelectiveBackpropper:
                                      start_time_seconds = start_time_seconds)
 
         self.trainer.on_backward_pass(self.logger.handle_backward_batch)
-        if log:
-            self.trainer.on_forward_pass(self.logger.handle_forward_batch)
+        #self.trainer.on_forward_pass(self.logger.handle_forward_batch)
 
     def next_epoch(self):
         self.logger.next_epoch()
