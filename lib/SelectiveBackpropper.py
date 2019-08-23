@@ -75,7 +75,7 @@ class SelectiveBackpropper:
                                                    self.backpropper,
                                                    batch_size,
                                                    loss_fn,
-                                                   lr_sched,
+                                                   lr_schedule=lr_sched,
                                                    forwardlr=forwardlr)
         else:
             probability_calculator = calculators.get_probability_calculator("relative",
