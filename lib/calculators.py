@@ -42,12 +42,12 @@ def get_probability_calculator(calculator_type,
                                                                     sampling_min,
                                                                     prob_pow)
     elif calculator_type == "hybrid":
-        probability_calculator = BatchedHybridProbabilityCalculator(device,
-                                                                    prob_loss_fn,
-                                                                    sampling_min,
-                                                                    max_history_len,
-                                                                    prob_pow,
-                                                                    num_classes)
+        probability_calculator = HybridProbabilityCalculator(device,
+                                                             prob_loss_fn,
+                                                             sampling_min,
+                                                             max_history_len,
+                                                             prob_pow,
+                                                             num_classes)
     elif calculator_type == "proportional":
         probability_calculator = ProportionalProbabiltyCalculator(sampling_min,
                                                                   sampling_max,
@@ -118,38 +118,30 @@ class RelativeProbabilityCalculator(object):
         prob = self.calculate_probability(stats.percentileofscore(self.historical_losses, loss, kind="rank"))
         return max(self.sampling_min, prob)
 
-class BatchedHybridProbabilityCalculator(RelativeProbabilityCalculator):
+class HybridProbabilityCalculator(RelativeProbabilityCalculator):
     def __init__(self, device, loss_fn, sampling_min, history_length, beta, num_classes):
         RelativeProbabilityCalculator.__init__(self, device, loss_fn, sampling_min, history_length, beta)
         self.num_classes = num_classes
 
-    def get_relative_probability(self, targets, outputs):
-        losses = self.loss_fn(reduce=False)(outputs, targets).cpu().data.numpy()
-        self.update_history(losses)
-        probs = [max(self.sampling_min, self.calculate_probability(loss)) for loss in losses]
-        return probs
+    def get_relative_probability(self, example):
+        loss = self.loss_fn()(example.output.unsqueeze(0), example.target.unsqueeze(0))
+        loss = loss.cpu().data.numpy()
+        self.update_history(loss)
+        prob = self.calculate_probability(stats.percentileofscore(self.historical_losses, loss, kind="rank"))
+        return max(self.sampling_min, prob)
 
-    def get_absolute_probability(self, targets, softmax_outputs):
-        targets = torch.stack(targets, dim=0).cpu().numpy()
-        softmax_outputs = torch.stack(softmax_outputs, dim=0).cpu().numpy()
-        classes = np.diag(np.ones(self.num_classes))
-        target_tensor = classes[targets]
-        l2_dist = np.linalg.norm(target_tensor - softmax_outputs, axis=1)
-        l2_dist = np.square(l2_dist)
-        return np.clip(l2_dist, self.sampling_min, 1)
+    def get_absolute_probability(self, example):
+        target = example.target
+        softmax_output = example.softmax_output
+        target_tensor = example.hot_encoded_target
+        l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
+        l2_dist *= l2_dist
+        base = torch.clamp(l2_dist, min=self.sampling_min)
+        prob = torch.clamp(base, max=1).detach()
+        return prob.item()
 
-    def get_probability(self, examples):
-        outputs = torch.stack([example.output for example in examples])
-        targets = torch.stack([example.target for example in examples])
-        softmax_outputs = torch.stack([example.softmax_output for example in examples])
-        relative_probs = self.get_relative_probability(targets, outputs)
-        absolute_probs = self.get_absolute_probability(targets, outputs)
-        probs = [max(r, a) for r, a in zip(relative_probs, absolute_probs)]
-        print("==========================")
-        print(relative_probs)
-        print("-------------------------")
-        print(absolute_probs)
-        return probs
+    def get_probability(self, example):
+        return max(self.get_relative_probability(example), self.get_absolute_probability(example))
 
 class BatchedSelectProbabilityCalculator(object):
     def __init__(self, sampling_min, sampling_max, num_classes, device, prob_transform=None):
