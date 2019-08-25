@@ -47,6 +47,7 @@ class Trainer(object):
                  max_num_backprops=float('inf'),
                  lr_schedule=None,
                  forwardlr=False):
+        self.examples = {}
         self.device = device
         self.net = net
         self.selector = selector
@@ -148,8 +149,25 @@ class Trainer(object):
         losses = self.loss_fn(reduce=False)(outputs, targets)
         softmax_outputs = nn.Softmax()(outputs)
 
-        examples = zip(losses, outputs, softmax_outputs, targets, data, image_ids)
-        return [Example(*example) for example in examples]
+
+        examples = []
+        for loss, output, softmax_output, target, datum, image_id in zip(losses, outputs, softmax_outputs, targets, data, image_ids):
+            if image_id in self.examples.keys()
+                example = self.examples[image_id]
+                example.loss = loss
+                example.output = output
+                example.softmax_output = softmax_output
+                example.datum = datum
+            else:
+                example = Example(loss=loss,
+                                  output=output,
+                                  softmax_output=softmax_output,
+                                  target=target,
+                                  datum=datum,
+                                  image_id=image_id)
+                self.examples[image_id] = example
+            examples.append(example)
+        return examples
 
     def get_batch(self, final):
 
@@ -206,8 +224,16 @@ class NoFilterTrainer(Trainer):
         data, targets = data.to(self.device), targets.to(self.device)
         batch = []
         for target, datum, image_id in zip(targets, data, image_ids):
-            example = Example(target=target, datum=datum, image_id=image_id, select_probability=1)
-            example.select = True
+            if image_id in self.examples.keys()
+                example = self.examples[image_id]
+                example.datum = datum
+            else:
+                example = Example(target=target,
+                                  datum=datum,
+                                  image_id=image_id,
+                                  select_probability=1)
+                example.select = True
+                self.examples[image_id] = example
             batch.append(example)
         return batch
 
