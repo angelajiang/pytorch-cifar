@@ -49,20 +49,22 @@ class BaselineBackpropper(object):
     def backward_pass(self, batch):
         self.net.train()
 
-        data = self._get_chosen_data_tensor(batch)
-        targets = self._get_chosen_targets_tensor(batch)
+        data = self._get_chosen_data_tensor(batch).to(self.device)
+        targets = self._get_chosen_targets_tensor(batch).to(self.device)
+
         probabilities = self._get_chosen_probabilities_tensor(batch)
 
         # Run forward pass
         # Necessary if the network has been updated between last forward pass
         outputs = self.net(data) 
-        losses = self.loss_fn(reduce=False)(outputs, targets)
+        loss = self.loss_fn(reduce=True)(outputs, targets)
 
 	softmax_outputs = nn.Softmax()(outputs)
         _, predicted = outputs.max(1)
         is_corrects = predicted.eq(targets)
 
         # Add for logging selected loss
+        '''
         for example, loss, output, softmax_output, is_correct in zip(batch,
                                                                      losses,
                                                                      outputs,
@@ -73,9 +75,10 @@ class BaselineBackpropper(object):
             example.output = output
             example.softmax_output = softmax_output
             example.correct = is_correct.item()
+        '''
 
         # Reduce loss
-        loss = losses.mean()
+        # loss = losses.mean()
 
         # Run backwards pass
         self.optimizer.zero_grad()
@@ -101,20 +104,15 @@ class SamplingBackpropper(object):
         chosen_targets = [example.target for example in batch if example.select]
         return torch.stack(chosen_targets)
 
-    def _get_chosen_probabilities_tensor(self, batch):
-        probabilities = [example.select_probability for example in batch if example.select]
-        return torch.tensor(probabilities, dtype=torch.float)
-
     def backward_pass(self, batch):
         self.net.train()
 
-        data = self._get_chosen_data_tensor(batch)
-        targets = self._get_chosen_targets_tensor(batch)
-        probabilities = self._get_chosen_probabilities_tensor(batch)
+        data = self._get_chosen_data_tensor(batch).to(self.device)
+        targets = self._get_chosen_targets_tensor(batch).to(self.device)
 
         # Run forward pass
         outputs = self.net(data) 
-        losses = self.loss_fn(reduce=False)(outputs, targets)
+        loss = self.loss_fn(reduce=True)(outputs, targets)
         softmax_outputs = nn.Softmax()(outputs)             # OPT: not necessary when logging is off
         _, predicted = outputs.max(1)
         is_corrects = predicted.eq(targets)
@@ -123,6 +121,7 @@ class SamplingBackpropper(object):
         #losses = torch.div(losses, probabilities.to(self.device))
 
         # Add for logging selected loss
+        '''
         for example, loss, output, softmax_output, is_correct in zip(batch,
                                                                      losses,
                                                                      outputs,
@@ -133,9 +132,10 @@ class SamplingBackpropper(object):
             example.output = output
             example.softmax_output = softmax_output
             example.correct = is_correct.item()
+        '''
 
         # Reduce loss
-        loss = losses.mean()
+        # loss = losses.mean()
 
         # Run backwards pass
         self.optimizer.zero_grad()
