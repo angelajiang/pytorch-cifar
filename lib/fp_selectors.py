@@ -23,12 +23,35 @@ class AlwaysOnSelector():
         return examples
 
 class ThresholdSelector():
-    def select(self, probability):
-        draw = np.random.uniform(0, 1)
-        return draw < probability
+    def __init__(self):
+        self.historical_sps = {}
+        self.times_passed = {}
+        self.threshold = 0.01
+        self.times_passed_threshold = 5
+
+    def select(self, example):
+        image_id = example.image_id
+
+        # First time seeing image. No SP calculated yet. FP image.
+        if image_id not in self.times_passed.keys():
+            self.historical_sps[image_id] = []
+            self.times_passed[image_id] = 0
+            return True
+
+        times_passed = self.times_passed[image_id]
+        # Image was forward propped last time. Update history with SP.
+        if times_passed == 0:
+            self.historical_sps[image_id].append(example.select_probability)
+
+        last_sp = self.historical_sps[image_id][-1]
+        if last_sp < self.threshold and self.times_passed < self.times_passes_threshold:
+            self.times_passed[image_id] += 1
+            return True
+        else:
+            self.times_passed[image_id] = 0
+            return False
 
     def mark(self, examples):
         for example in examples:
-            example.forward_select_probability = 1.
-            example.forward_select = self.select(example.forward_select_probability)
+            example.forward_select = self.select(example)
         return examples
