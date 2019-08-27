@@ -30,6 +30,9 @@ class CutoutForwardpropper(object):
         data = self._get_chosen_data_tensor(selected_examples)
         targets = self._get_chosen_targets_tensor(selected_examples)
 
+        data = self._get_chosen_data_tensor(batch).to(self.device)
+        targets = self._get_chosen_targets_tensor(batch).to(self.device)
+
         # Run forward pass
         # Necessary if the network has been updated between last forward pass
         self.net.eval()

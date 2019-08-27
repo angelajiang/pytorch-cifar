@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import fp_selectors
 import forwardproppers
+import sb_util
 
 
 class Example(object):
@@ -17,16 +18,31 @@ class Example(object):
                  image_id=None,
                  select_probability=None):
         if loss is not None:
-            self.loss = loss.detach()
+            self.loss = loss.detach().cpu()
         if output is not None:
-            self.output = output.detach()
+            self.output = output.detach().cpu()
         if softmax_output is not None:
-            self.softmax_output = softmax_output.detach()
+            self.softmax_output = softmax_output.detach().cpu()
         self.target = target.detach()
-        self.datum = datum.detach()
+        self.datum = datum.detach().cpu()
         self.image_id = image_id
         self.select_probability = select_probability
         self.backpropped_loss = None   # Populated after backprop
+
+    def __str__(self):
+        string = "Image {}\n\ndatum:{}\ntarget:{}\nsp:{}\n".format(self.image_id,
+                                                                   self.datum,
+                                                                   self.target,
+                                                                   self.select_probability)
+        if hasattr(self, 'loss'):
+            string += "loss:{}\n".format(self.loss)
+        if hasattr(self, 'output'):
+            string += "output:{}\n".format(self.output)
+        if hasattr(self, 'softmax_output'):
+            string += "softmax_output:{}\n".format(self.softmax_output)
+
+        return string
+
 
     @property
     def predicted(self):
@@ -225,8 +241,8 @@ class MemoizedTrainer(Trainer):
                 example = self.examples[image_id]
                 example.datum = datum.detach()
             batch.append(example)
+            
         return batch
-
 
     def train_batch(self, batch, final):
         examples = self.create_example_batch(*batch)
