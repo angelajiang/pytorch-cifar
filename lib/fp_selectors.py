@@ -24,13 +24,19 @@ class AlwaysOnSelector():
 
 class ThresholdSelector():
     def __init__(self):
+        self.logger = {"counter": 0, "path_3": 0, "path_2": 0, "path_1": 0}
         self.historical_sps = {}
         self.times_passed = {}
-        self.threshold = 0.001
+        self.threshold = 0.01
         self.times_passed_threshold = 5
         print("ThesholdSelector {}-{}".format(self.threshold, self.times_passed_threshold))
 
     def select(self, example):
+
+        if self.logger['counter'] % 10000 == 0:
+            print(self.logger)
+        self.logger['counter'] += 1
+
         image_id = example.image_id
 
         # First time seeing image. No SP calculated yet. FP image.
@@ -43,13 +49,16 @@ class ThresholdSelector():
         # Image was forward propped last time. Update history with SP.
         if times_passed == 0:
             self.historical_sps[image_id] = example.select_probability
+            self.logger['path_1'] += 1
 
         last_sp = self.historical_sps[image_id]
-        if last_sp < self.threshold and self.times_passed < self.times_passes_threshold:
+        if last_sp < self.threshold and times_passed <= self.times_passed_threshold:
             self.times_passed[image_id] += 1
+            self.logger['path_2'] += 1
             return True
         else:
             self.times_passed[image_id] = 0
+            self.logger['path_3'] += 1
             return False
 
     def mark(self, examples):

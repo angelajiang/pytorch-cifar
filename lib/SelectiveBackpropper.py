@@ -28,6 +28,7 @@ class SelectiveBackpropper:
         assert device == "cuda"
         self.num_training_images = num_training_images
         num_images_to_prime = self.num_training_images
+        #num_images_to_prime = 0
 
         fp_selector = "threshold"
         log_interval = 1

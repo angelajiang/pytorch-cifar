@@ -68,8 +68,8 @@ class BaselineBackpropper(object):
                                                                outputs,
                                                                softmax_outputs,
                                                                is_corrects):
-            example.output = output
-            example.softmax_output = softmax_output
+            example.output = output.detach()
+            example.softmax_output = softmax_output.detach()
             example.correct = is_correct.item()
 
         # Reduce loss
@@ -120,8 +120,8 @@ class SamplingBackpropper(object):
                                                                outputs,
                                                                softmax_outputs,
                                                                is_corrects):
-            example.output = output
-            example.softmax_output = softmax_output
+            example.output = output.detach()
+            example.softmax_output = softmax_output.detach()
             example.correct = is_correct.item()
 
         # Reduce loss

@@ -24,7 +24,7 @@ class Example(object):
             self.softmax_output = softmax_output.detach()
         self.target = target.detach()
         self.datum = datum.detach()
-        self.image_id = image_id.item()
+        self.image_id = image_id
         self.select_probability = select_probability
         self.backpropped_loss = None   # Populated after backprop
 
@@ -203,6 +203,7 @@ class MemoizedTrainer(Trainer):
         self.forwardpropper = forwardproppers.CutoutForwardpropper(device,
                                                                    net,
                                                                    loss_fn)
+        self.examples = {}
 
     def on_forward_mark(self, handler):
         self.forward_mark_handlers.append(handler)
@@ -215,8 +216,14 @@ class MemoizedTrainer(Trainer):
         data, targets = data.to(self.device), targets.to(self.device)
         batch = []
         for target, datum, image_id in zip(targets, data, image_ids):
-            example = Example(target=target, datum=datum, image_id=image_id, select_probability=1)
-            example.select = True
+            image_id = image_id.item()
+            if image_id not in self.examples.keys():
+                example = Example(target=target, datum=datum, image_id=image_id, select_probability=1)
+                example.select = True
+                self.examples[image_id] = example
+            else:
+                example = self.examples[image_id]
+                example.datum = datum.detach()
             batch.append(example)
         return batch
 
