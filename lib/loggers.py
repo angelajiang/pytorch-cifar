@@ -382,13 +382,14 @@ class VariancesByAverageProbabilityByImageLogger(object):
 
 class Logger(object):
 
-    def __init__(self, log_interval=1, epoch=0, num_backpropped=0, num_skipped=0, num_forwards=0, start_time_seconds=None):
+    def __init__(self, log_interval=1, epoch=0, num_backpropped=0, num_skipped=0, num_skipped_fp=0, num_forwards=0, start_time_seconds=None):
         self.current_epoch = epoch
         self.current_batch = 0
         self.log_interval = log_interval
 
         self.global_num_backpropped = num_backpropped
         self.global_num_skipped = num_skipped
+        self.global_num_skipped_fp = num_skipped_fp
         self.global_num_forwards= num_forwards
 
         self.partition_loss = 0
@@ -429,7 +430,7 @@ class Logger(object):
             self.current_epoch,
             self.global_num_backpropped,
             self.global_num_skipped,
-            self.average_partition_loss,
+            self.global_num_skipped_fp,
             self.average_partition_backpropped_loss,
             self.global_num_forwards,
             self.partition_accuracy,
@@ -442,11 +443,14 @@ class Logger(object):
         self.partition_num_skipped = 0
         self.partition_num_correct = 0
 
+    def handle_forward_mark(self, batch):
+        num_skipped_fp = sum([int(not example.forward_select) for example in batch])
+        self.global_num_skipped_fp += num_skipped_fp
+
     def handle_forward_batch(self, batch):
         # Populate batch_stats
         # self.partition_loss += sum([example.loss for example in batch])
-        self.global_num_forwards += sum([1 for example in batch if example.forward_select]) # Use with MemoizedTrainer
-        # self.global_num_forwards += len(batch) # Use w/ Trainer and NoFilterTrainer
+        self.global_num_forwards += len(batch)
 
     def handle_backward_batch(self, batch):
 
