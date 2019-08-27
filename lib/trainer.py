@@ -204,6 +204,7 @@ class MemoizedTrainer(Trainer):
                                                                    loss_fn)
 
     def create_example_batch(self, data, targets, image_ids):
+        data, targets = data.to(self.device), targets.to(self.device)
         batch = []
         for target, datum, image_id in zip(targets, data, image_ids):
             example = Example(target=target, datum=datum, image_id=image_id, select_probability=1)
