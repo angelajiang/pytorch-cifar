@@ -26,24 +26,25 @@ class ThresholdSelector():
     def __init__(self):
         self.historical_sps = {}
         self.times_passed = {}
-        self.threshold = 0.01
+        self.threshold = 0.001
         self.times_passed_threshold = 5
+        print("ThesholdSelector {}-{}".format(self.threshold, self.times_passed_threshold))
 
     def select(self, example):
         image_id = example.image_id
 
         # First time seeing image. No SP calculated yet. FP image.
         if image_id not in self.times_passed.keys():
-            self.historical_sps[image_id] = []
+            self.historical_sps[image_id] = None
             self.times_passed[image_id] = 0
             return True
 
         times_passed = self.times_passed[image_id]
         # Image was forward propped last time. Update history with SP.
         if times_passed == 0:
-            self.historical_sps[image_id].append(example.select_probability)
+            self.historical_sps[image_id] = example.select_probability
 
-        last_sp = self.historical_sps[image_id][-1]
+        last_sp = self.historical_sps[image_id]
         if last_sp < self.threshold and self.times_passed < self.times_passes_threshold:
             self.times_passed[image_id] += 1
             return True
