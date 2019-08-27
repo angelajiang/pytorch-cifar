@@ -277,6 +277,7 @@ class NoFilterTrainer(Trainer):
         if backprop_batch:
             annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
             self.emit_backward_pass(annotated_backward_batch)
+            self.emit_forward_pass(annotated_backward_batch)
 
     def create_example_batch(self, data, targets, image_ids):
         # data, targets = data.to(self.device), targets.to(self.device)
@@ -284,6 +285,7 @@ class NoFilterTrainer(Trainer):
         for target, datum, image_id in zip(targets, data, image_ids):
             example = Example(target=target, datum=datum, image_id=image_id, select_probability=1)
             example.select = True
+            example.foward_select = True
             batch.append(example)
         return batch
 

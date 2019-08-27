@@ -397,7 +397,7 @@ class Logger(object):
         self.partition_num_skipped = 0
         self.partition_num_correct = 0
 
-        self.debug = False
+        self.debug = True
 
         if start_time_seconds is None:
             self.start_time_seconds = time.time()
@@ -444,7 +444,7 @@ class Logger(object):
 
     def handle_forward_batch(self, batch):
         # Populate batch_stats
-        self.partition_loss += sum([example.loss for example in batch])
+        # self.partition_loss += sum([example.loss for example in batch])
         self.global_num_forwards += sum([1 for example in batch if example.forward_select]) # Use with MemoizedTrainer
         # self.global_num_forwards += len(batch) # Use w/ Trainer and NoFilterTrainer
 
