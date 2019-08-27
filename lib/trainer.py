@@ -2,6 +2,8 @@ import json
 import numpy as np
 import torch
 import torch.nn as nn
+import fp_selectors
+import forwardproppers
 
 
 class Example(object):
@@ -171,6 +173,80 @@ class Trainer(object):
             return backprop_batch
         return None
 
+class MemoizedTrainer(Trainer):
+    def __init__(self,
+                 device,
+                 net,
+                 selector,
+                 backpropper,
+                 batch_size,
+                 loss_fn,
+                 max_num_backprops=float('inf'),
+                 lr_schedule=None,
+                 forwardlr=False,
+                 fp_selector_type="alwayson"):
+
+        super(MemoizedTrainer, self).__init__(device,
+                                net,
+                                selector,
+                                backpropper,
+                                batch_size,
+                                loss_fn,
+                                max_num_backprops,
+                                lr_schedule,
+                                forwardlr)
+
+        self.forward_queue = []
+        self.fp_selector = fp_selectors.get_selector(fp_selector_type)
+        self.forward_batch_size = batch_size
+        self.forwardpropper = forwardproppers.CutoutForwardpropper(device,
+                                                                   net,
+                                                                   loss_fn)
+
+    def create_example_batch(self, data, targets, image_ids):
+        batch = []
+        for target, datum, image_id in zip(targets, data, image_ids):
+            example = Example(target=target, datum=datum, image_id=image_id, select_probability=1)
+            example.select = True
+            batch.append(example)
+        return batch
+
+
+    def train_batch(self, batch, final):
+        examples = self.create_example_batch(*batch)
+        batch_marked_for_fp = self.fp_selector.mark(examples)
+        #self.emit_forward_mark(batch_marked_for_fp)
+        self.forward_queue += batch_marked_for_fp
+        batch_to_fp = self.get_forward_batch(final)
+        if batch_to_fp:
+            forward_pass_batch = self.forwardpropper.forward_pass(batch_to_fp)
+            annotated_forward_batch = self.selector.mark(forward_pass_batch)
+            self.emit_forward_pass(annotated_forward_batch)
+            self.backprop_queue += annotated_forward_batch
+            backprop_batch = self.get_batch(final)
+            if backprop_batch:
+                annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
+                self.emit_backward_pass(annotated_backward_batch)
+
+    def get_forward_batch(self, final):
+        num_images_to_fp = 0
+        for index, example in enumerate(self.forward_queue):
+            num_images_to_fp += int(example.forward_select)
+            if num_images_to_fp == self.forward_batch_size:
+                # Note: includes item that should and shouldn't be forward propped
+                forward_batch = self.forward_queue[:index+1]
+                self.forward_queue = self.forward_queue[index+1:]
+                return forward_batch
+        if final:
+            def get_num_to_forward(batch):
+                return sum([1 for example in batch if example.forward_select])
+            forward_batch = self.forward_queue
+            self.forward_queue = []
+            if get_num_to_forward(forward_batch) == 0:
+                return None
+            return forward_batch
+        return None
+
 class NoFilterTrainer(Trainer):
     def __init__(self,
                  device,
@@ -211,6 +287,7 @@ class NoFilterTrainer(Trainer):
             batch.append(example)
         return batch
 
+'''
 class MemoizedTrainer(Trainer):
     def __init__(self,
                  device,
@@ -264,9 +341,6 @@ class MemoizedTrainer(Trainer):
         return count
 
     def train_batch(self, candidate_forward_batch, final):
-        '''
-        TO TEST
-        '''
         # Transform candidate forward_batch into examples
         candidate_forward_batch_examples = []
         for datum, image_id in zip(candidate_forward_batch[0], candidate_forward_batch[2]):
@@ -291,15 +365,8 @@ class MemoizedTrainer(Trainer):
                 self.emit_backward_pass(annotated_backward_batch)
 
     def forward_pass(self, batch_to_fp):
-        '''
-        TO TEST
-        '''
-        return self.forwardpropper.forward_pass(batch_to_fp)
 
     def get_forward_batch(self, final):
-        '''
-        TO TEST
-        '''
         num_images_to_fp = 0
         for index, example in enumerate(self.forward_queue):
             num_images_to_fp += int(example.get_select(True))
@@ -317,6 +384,7 @@ class MemoizedTrainer(Trainer):
                 return None
             return forward_batch
         return None
+'''
 
 
 class KathTrainer(Trainer):

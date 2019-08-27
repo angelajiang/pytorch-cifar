@@ -96,14 +96,14 @@ class SelectiveBackpropper:
                                                                 optimizer,
                                                                 loss_fn)
 
-            self.trainer = trainer.Trainer(device,
-                                           model,
-                                           self.selector,
-                                           self.backpropper,
-                                           batch_size,
-                                           loss_fn,
-                                           lr_schedule=lr_sched,
-                                           forwardlr=forwardlr)
+            self.trainer = trainer.MemoizedTrainer(device,
+                                                   model,
+                                                   self.selector,
+                                                   self.backpropper,
+                                                   batch_size,
+                                                   loss_fn,
+                                                   lr_schedule=lr_sched,
+                                                   forwardlr=forwardlr)
 
         self.logger = loggers.Logger(log_interval = log_interval,
                                      epoch=start_epoch,

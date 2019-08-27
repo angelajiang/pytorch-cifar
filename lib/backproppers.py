@@ -64,18 +64,13 @@ class BaselineBackpropper(object):
         is_corrects = predicted.eq(targets)
 
         # Add for logging selected loss
-        '''
-        for example, loss, output, softmax_output, is_correct in zip(batch,
-                                                                     losses,
-                                                                     outputs,
-                                                                     softmax_outputs,
-                                                                     is_corrects):
-            example.backpropped_loss = loss.item()
-            example.loss = loss.item()
+        for example, output, softmax_output, is_correct in zip(batch,
+                                                               outputs,
+                                                               softmax_outputs,
+                                                               is_corrects):
             example.output = output
             example.softmax_output = softmax_output
             example.correct = is_correct.item()
-        '''
 
         # Reduce loss
         # loss = losses.mean()
@@ -121,18 +116,13 @@ class SamplingBackpropper(object):
         #losses = torch.div(losses, probabilities.to(self.device))
 
         # Add for logging selected loss
-        '''
-        for example, loss, output, softmax_output, is_correct in zip(batch,
-                                                                     losses,
-                                                                     outputs,
-                                                                     softmax_outputs,
-                                                                     is_corrects):
-            example.backpropped_loss = loss.item()
-            example.loss = loss
+        for example, output, softmax_output, is_correct in zip(batch,
+                                                               outputs,
+                                                               softmax_outputs,
+                                                               is_corrects):
             example.output = output
             example.softmax_output = softmax_output
             example.correct = is_correct.item()
-        '''
 
         # Reduce loss
         # loss = losses.mean()

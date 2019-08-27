@@ -445,7 +445,8 @@ class Logger(object):
     def handle_forward_batch(self, batch):
         # Populate batch_stats
         self.partition_loss += sum([example.loss for example in batch])
-        self.global_num_forwards += len(batch)
+        self.global_num_forwards += sum([1 for example in batch if example.forward_select]) # Use with MemoizedTrainer
+        # self.global_num_forwards += len(batch) # Use w/ Trainer and NoFilterTrainer
 
     def handle_backward_batch(self, batch):
 
@@ -462,7 +463,7 @@ class Logger(object):
             self.partition_backpropped_loss += sum([example.backpropped_loss
                                                     for example in batch
                                                     if example.backpropped_loss])
-            self.partition_num_correct += sum([int(example.is_correct) for example in batch])
+            self.partition_num_correct += sum([int(example.correct) for example in batch])
 
             self.write()
 
