@@ -28,6 +28,7 @@ class SelectiveBackpropper:
         self.num_training_images = num_training_images
         num_images_to_prime = self.num_training_images
 
+        fp_selector = "threshold"
         log_interval = 1
         sampling_max = 1
         max_history_len = 1024
@@ -103,7 +104,8 @@ class SelectiveBackpropper:
                                                    batch_size,
                                                    loss_fn,
                                                    lr_schedule=lr_sched,
-                                                   forwardlr=forwardlr)
+                                                   forwardlr=forwardlr,
+                                                   fp_selector_type=fp_selector)
 
         self.logger = loggers.Logger(log_interval = log_interval,
                                      epoch=start_epoch,
