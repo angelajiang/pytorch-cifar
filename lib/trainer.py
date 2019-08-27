@@ -24,7 +24,7 @@ class Example(object):
             self.softmax_output = softmax_output.detach()
         self.target = target.detach()
         self.datum = datum.detach()
-        self.image_id = image_id.detach()
+        self.image_id = image_id.item()
         self.select_probability = select_probability
         self.backpropped_loss = None   # Populated after backprop
 
