@@ -25,6 +25,7 @@ class SelectiveBackpropper:
 
         ## Hardcoded params
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        assert device == "cuda"
         self.num_training_images = num_training_images
         num_images_to_prime = self.num_training_images
 
