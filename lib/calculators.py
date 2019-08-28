@@ -90,8 +90,9 @@ class BatchedRelativeProbabilityCalculator(object):
         return math.pow(percentile / 100., self.beta)
 
     def get_probability(self, examples):
-        outputs = torch.stack([example.output for example in examples])
-        targets = torch.stack([example.target for example in examples])
+        outputs = torch.stack([example.output for example in examples]).to(self.device)
+        targets = torch.stack([example.target for example in examples]).to(self.device)
+
         losses = self.loss_fn(reduce=False)(outputs, targets).detach().cpu().data.numpy()
         self.update_history(losses)
         probs = [max(self.sampling_min, self.calculate_probability(loss)) for loss in losses]

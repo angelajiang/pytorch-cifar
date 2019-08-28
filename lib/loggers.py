@@ -451,6 +451,7 @@ class Logger(object):
         # Populate batch_stats
         # self.partition_loss += sum([example.loss for example in batch])
         self.global_num_forwards += len(batch)
+        #self.global_num_forwards += sum([int(example.forward_select) for example in batch])
 
     def handle_backward_batch(self, batch):
 

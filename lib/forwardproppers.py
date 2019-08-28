@@ -46,10 +46,10 @@ class CutoutForwardpropper(object):
         is_corrects = predicted.eq(targets)
 
         for e, loss, output, softmax_output, is_correct in zip(selected_examples,
-                                                                     losses,
-                                                                     outputs,
-                                                                     softmax_outputs,
-                                                                     is_corrects):
+                                                               losses,
+                                                               outputs,
+                                                               softmax_outputs,
+                                                               is_corrects):
 
             e.loss = loss
             e.output = output

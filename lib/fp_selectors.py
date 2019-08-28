@@ -27,7 +27,7 @@ class ThresholdSelector():
         self.logger = {"counter": 0, "path_3": 0, "path_2": 0, "path_1": 0}
         self.historical_sps = {}
         self.times_passed = {}
-        self.threshold = 0.01
+        self.threshold = 0.0001
         self.times_passed_threshold = 5
         print("ThesholdSelector {}-{}".format(self.threshold, self.times_passed_threshold))
 
@@ -55,11 +55,11 @@ class ThresholdSelector():
         if last_sp < self.threshold and times_passed <= self.times_passed_threshold:
             self.times_passed[image_id] += 1
             self.logger['path_2'] += 1
-            return True
+            return False
         else:
             self.times_passed[image_id] = 0
             self.logger['path_3'] += 1
-            return False
+            return True
 
     def mark(self, examples):
         for example in examples:
