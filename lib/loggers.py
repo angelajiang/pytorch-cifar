@@ -397,7 +397,7 @@ class Logger(object):
         self.partition_num_skipped = 0
         self.partition_num_correct = 0
 
-        self.debug = False
+        self.debug = True
 
         if start_time_seconds is None:
             self.start_time_seconds = time.time()
@@ -462,7 +462,7 @@ class Logger(object):
             self.partition_backpropped_loss += sum([example.backpropped_loss
                                                     for example in batch
                                                     if example.backpropped_loss])
-            self.partition_num_correct += sum([int(example.is_correct) for example in batch])
+            self.partition_num_correct += sum([int(example.correct) for example in batch])
 
             self.write()
 

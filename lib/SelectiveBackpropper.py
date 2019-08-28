@@ -25,6 +25,7 @@ class SelectiveBackpropper:
 
         ## Hardcoded params
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        assert device == "cuda"
         self.num_training_images = num_training_images
         num_images_to_prime = self.num_training_images
 
@@ -96,14 +97,14 @@ class SelectiveBackpropper:
                                                                 optimizer,
                                                                 loss_fn)
 
-            self.trainer = trainer.Trainer(device,
-                                           model,
-                                           self.selector,
-                                           self.backpropper,
-                                           batch_size,
-                                           loss_fn,
-                                           lr_schedule=lr_sched,
-                                           forwardlr=forwardlr)
+            self.trainer = trainer.StaleTrainer(device,
+                                                model,
+                                                self.selector,
+                                                self.backpropper,
+                                                batch_size,
+                                                loss_fn,
+                                                lr_schedule=lr_sched,
+                                                forwardlr=forwardlr)
 
         self.logger = loggers.Logger(log_interval = log_interval,
                                      epoch=start_epoch,
@@ -112,7 +113,7 @@ class SelectiveBackpropper:
                                      start_time_seconds = start_time_seconds)
 
         self.trainer.on_backward_pass(self.logger.handle_backward_batch)
-        #self.trainer.on_forward_pass(self.logger.handle_forward_batch)
+        self.trainer.on_forward_pass(self.logger.handle_forward_batch)
 
     def next_epoch(self):
         self.logger.next_epoch()

@@ -2,6 +2,8 @@ import json
 import numpy as np
 import torch
 import torch.nn as nn
+import forwardproppers
+import sb_util
 
 
 class Example(object):
@@ -15,16 +17,31 @@ class Example(object):
                  image_id=None,
                  select_probability=None):
         if loss is not None:
-            self.loss = loss.detach()
+            self.loss = loss.detach().cpu()
         if output is not None:
-            self.output = output.detach()
+            self.output = output.detach().cpu()
         if softmax_output is not None:
-            self.softmax_output = softmax_output.detach()
+            self.softmax_output = softmax_output.detach().cpu()
         self.target = target.detach()
-        self.datum = datum.detach()
-        self.image_id = image_id.detach()
+        self.datum = datum.detach().cpu()
+        self.image_id = image_id
         self.select_probability = select_probability
         self.backpropped_loss = None   # Populated after backprop
+
+    def __str__(self):
+        string = "Image {}\n\ndatum:{}\ntarget:{}\nsp:{}\n".format(self.image_id,
+                                                                   self.datum,
+                                                                   self.target,
+                                                                   self.select_probability)
+        if hasattr(self, 'loss'):
+            string += "loss:{}\n".format(self.loss)
+        if hasattr(self, 'output'):
+            string += "output:{}\n".format(self.output)
+        if hasattr(self, 'softmax_output'):
+            string += "softmax_output:{}\n".format(self.softmax_output)
+
+        return string
+
 
     @property
     def predicted(self):
@@ -171,6 +188,61 @@ class Trainer(object):
             return backprop_batch
         return None
 
+class StaleTrainer(Trainer):
+    def __init__(self,
+                 device,
+                 net,
+                 selector,
+                 backpropper,
+                 batch_size,
+                 loss_fn,
+                 max_num_backprops=float('inf'),
+                 lr_schedule=None,
+                 forwardlr=False,
+                 fp_selector_type="alwayson"):
+
+        super(StaleTrainer, self).__init__(device,
+                                           net,
+                                           selector,
+                                           backpropper,
+                                           batch_size,
+                                           loss_fn,
+                                           max_num_backprops,
+                                           lr_schedule,
+                                           forwardlr)
+
+        self.forwardpropper = forwardproppers.CutoutForwardpropper(device,
+                                                                   net,
+                                                                   loss_fn)
+        self.examples = {}
+
+    def create_example_batch(self, data, targets, image_ids):
+        data, targets = data.to(self.device), targets.to(self.device)
+        batch = []
+        for target, datum, image_id in zip(targets, data, image_ids):
+            image_id = image_id.item()
+            if image_id not in self.examples.keys():
+                example = Example(target=target, datum=datum, image_id=image_id, select_probability=1)
+                example.select = True
+                self.examples[image_id] = example
+            else:
+                example = self.examples[image_id]
+                example.datum = datum.detach()
+            batch.append(example)
+            
+        return batch
+
+    def train_batch(self, batch, final):
+        examples = self.create_example_batch(*batch)
+        forward_pass_batch = self.forwardpropper.forward_pass(examples)
+        annotated_forward_batch = self.selector.mark(forward_pass_batch)
+        self.emit_forward_pass(annotated_forward_batch)
+        self.backprop_queue += annotated_forward_batch
+        backprop_batch = self.get_batch(final)
+        if backprop_batch:
+            annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
+            self.emit_backward_pass(annotated_backward_batch)
+
 class NoFilterTrainer(Trainer):
     def __init__(self,
                  device,
@@ -201,6 +273,7 @@ class NoFilterTrainer(Trainer):
         if backprop_batch:
             annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
             self.emit_backward_pass(annotated_backward_batch)
+            self.emit_forward_pass(annotated_backward_batch)
 
     def create_example_batch(self, data, targets, image_ids):
         # data, targets = data.to(self.device), targets.to(self.device)
@@ -264,9 +337,6 @@ class MemoizedTrainer(Trainer):
         return count
 
     def train_batch(self, candidate_forward_batch, final):
-        '''
-        TO TEST
-        '''
         # Transform candidate forward_batch into examples
         candidate_forward_batch_examples = []
         for datum, image_id in zip(candidate_forward_batch[0], candidate_forward_batch[2]):
@@ -290,16 +360,7 @@ class MemoizedTrainer(Trainer):
                 annotated_backward_batch = self.backpropper.backward_pass(batch_to_bp)
                 self.emit_backward_pass(annotated_backward_batch)
 
-    def forward_pass(self, batch_to_fp):
-        '''
-        TO TEST
-        '''
-        return self.forwardpropper.forward_pass(batch_to_fp)
-
     def get_forward_batch(self, final):
-        '''
-        TO TEST
-        '''
         num_images_to_fp = 0
         for index, example in enumerate(self.forward_queue):
             num_images_to_fp += int(example.get_select(True))
