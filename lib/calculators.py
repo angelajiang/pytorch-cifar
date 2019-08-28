@@ -33,7 +33,6 @@ def get_probability_calculator(calculator_type,
         probability_calculator = BatchedAlwaysOnProbabilityCalculator()
     elif calculator_type == "relative":
         probability_calculator = BatchedRelativeProbabilityCalculator(device,
-                                                                      prob_loss_fn,
                                                                       sampling_min,
                                                                       max_history_len,
                                                                       prob_pow)
@@ -74,9 +73,8 @@ class BatchedRandomProbabilityCalculator(object):
         return probs
 
 class BatchedRelativeProbabilityCalculator(object):
-    def __init__(self, device, loss_fn, sampling_min, history_length, beta):
+    def __init__(self, device, sampling_min, history_length, beta):
         self.device = device
-        self.loss_fn = loss_fn
         self.historical_losses = lib.hist.UnboundedHistogram(history_length) #collections.deque(maxlen=history_length)
         self.sampling_min = sampling_min
         self.beta = beta
@@ -90,9 +88,7 @@ class BatchedRelativeProbabilityCalculator(object):
         return math.pow(percentile / 100., self.beta)
 
     def get_probability(self, examples):
-        outputs = torch.stack([example.output for example in examples])
-        targets = torch.stack([example.target for example in examples])
-        losses = self.loss_fn(reduce=False)(outputs, targets).detach().cpu().data.numpy()
+        losses = [example.loss for example in examples]
         self.update_history(losses)
         probs = [max(self.sampling_min, self.calculate_probability(loss)) for loss in losses]
         return probs
