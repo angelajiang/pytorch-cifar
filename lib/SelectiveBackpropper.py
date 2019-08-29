@@ -1,5 +1,6 @@
 import backproppers
 import calculators
+import fp_selectors
 import loggers
 import selectors
 import time
@@ -28,7 +29,9 @@ class SelectiveBackpropper:
         assert device == "cuda"
         self.num_training_images = num_training_images
         num_images_to_prime = self.num_training_images
+        #num_images_to_prime = 0
 
+        fp_selector_type = "stale"
         log_interval = 1
         sampling_max = 1
         max_history_len = 1024
@@ -48,11 +51,11 @@ class SelectiveBackpropper:
             print("Make sure that kath strategy is consistent.")
             exit()
             self.selector = None
-            final_backpropper = backproppers.BaselineBackpropper(device,
+            final_backpropper = backproppers.SamplingBackpropper(device,
                                                                  model,
                                                                  optimizer,
                                                                  loss_fn)
-            self.backpropper = backproppers.PrimedBackpropper(backproppers.BaselineBackpropper(device,
+            self.backpropper = backproppers.PrimedBackpropper(backproppers.SamplingBackpropper(device,
                                                                                                   model,
                                                                                                   optimizer,
                                                                                                   loss_fn),
@@ -67,7 +70,7 @@ class SelectiveBackpropper:
                                                lr_sched,
                                                forwardlr=forwardlr)
         elif strategy == "nofilter":
-            self.backpropper = backproppers.BaselineBackpropper(device,
+            self.backpropper = backproppers.SamplingBackpropper(device,
                                                                 model,
                                                                 optimizer,
                                                                 loss_fn)
@@ -92,19 +95,23 @@ class SelectiveBackpropper:
                                                    num_images_to_prime,
                                                    sample_size)
 
+            self.fp_selector = fp_selectors.get_selector(fp_selector_type,
+                                                         num_images_to_prime)
+
             self.backpropper = backproppers.SamplingBackpropper(device,
                                                                 model,
                                                                 optimizer,
                                                                 loss_fn)
 
-            self.trainer = trainer.StaleTrainer(device,
-                                                model,
-                                                self.selector,
-                                                self.backpropper,
-                                                batch_size,
-                                                loss_fn,
-                                                lr_schedule=lr_sched,
-                                                forwardlr=forwardlr)
+            self.trainer = trainer.MemoizedTrainer(device,
+                                                   model,
+                                                   self.selector,
+                                                   self.fp_selector,
+                                                   self.backpropper,
+                                                   batch_size,
+                                                   loss_fn,
+                                                   lr_schedule=lr_sched,
+                                                   forwardlr=forwardlr)
 
         self.logger = loggers.Logger(log_interval = log_interval,
                                      epoch=start_epoch,
@@ -114,6 +121,7 @@ class SelectiveBackpropper:
 
         self.trainer.on_backward_pass(self.logger.handle_backward_batch)
         self.trainer.on_forward_pass(self.logger.handle_forward_batch)
+        self.trainer.on_forward_mark(self.logger.handle_forward_mark)
 
     def next_epoch(self):
         self.logger.next_epoch()
@@ -121,4 +129,6 @@ class SelectiveBackpropper:
     def next_partition(self):
         if self.selector is not None:
             self.selector.next_partition(self.num_training_images)
+        if self.fp_selector is not None:
+            self.fp_selector.next_partition(self.num_training_images)
         self.logger.next_partition()

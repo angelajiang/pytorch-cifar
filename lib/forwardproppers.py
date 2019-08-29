@@ -9,6 +9,9 @@ class CutoutForwardpropper(object):
         self.device = device
         self.loss_fn = loss_fn
 
+    def _get_chosen_examples(self, batch):
+        return [example for example in batch if example.forward_select]
+
     def _get_chosen_image_ids(self, examples):
         return [example.image_id for example in examples]
 
@@ -22,35 +25,35 @@ class CutoutForwardpropper(object):
 
     def forward_pass(self, batch):
 
-        image_ids = self._get_chosen_image_ids(batch)
-        data = self._get_chosen_data_tensor(batch)
-        targets = self._get_chosen_targets_tensor(batch)
+        selected_examples = self._get_chosen_examples(batch)
 
-        data = self._get_chosen_data_tensor(batch).to(self.device)
-        targets = self._get_chosen_targets_tensor(batch).to(self.device)
+        if len(selected_examples) > 0:
+            image_ids = self._get_chosen_image_ids(selected_examples)
+            data = self._get_chosen_data_tensor(selected_examples)
+            targets = self._get_chosen_targets_tensor(selected_examples)
 
-        # Run forward pass
-        # Necessary if the network has been updated between last forward pass
-        self.net.eval()
-        with torch.no_grad():
-            outputs = self.net(data)
+            data = self._get_chosen_data_tensor(batch).to(self.device)
+            targets = self._get_chosen_targets_tensor(batch).to(self.device)
 
-        losses = self.loss_fn(reduce=False)(outputs, targets)
-        softmax_outputs = nn.Softmax()(outputs)
+            # Run forward pass
+            # Necessary if the network has been updated between last forward pass
+            self.net.eval()
+            with torch.no_grad():
+                outputs = self.net(data)
 
-        _, predicted = outputs.max(1)
-        is_corrects = predicted.eq(targets)
+            losses = self.loss_fn(reduce=False)(outputs, targets)
+            softmax_outputs = nn.Softmax()(outputs)
 
-        for e, loss, output, softmax_output, is_correct in zip(batch,
-                                                               losses,
-                                                               outputs,
-                                                               softmax_outputs,
-                                                               is_corrects):
+            _, predicted = outputs.max(1)
+            is_corrects = predicted.eq(targets)
 
-            e.loss = loss
-            e.output = output
-            e.softmax_output = softmax_output
-            e.correct = is_correct.item()
+            for e, loss, is_correct in zip(selected_examples,
+                                           losses,
+                                           is_corrects):
+
+                e.loss = loss.item()
+                e.correct = is_correct.item()
+                e.epochs_since_update = 0
 
         return batch
 
