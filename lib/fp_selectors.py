@@ -49,7 +49,7 @@ class AlwaysOnSelector():
 
 class StaleSelector():
     def __init__(self):
-        self.threshold = 1
+        self.threshold = 2
         self.logger = {"counter": 0, "forward": 0, "no_forward": 0}
         print("StaleSelector_{}".format(self.threshold))
 

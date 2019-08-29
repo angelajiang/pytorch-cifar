@@ -152,7 +152,6 @@ class Trainer(object):
         self.backprop_queue += annotated_forward_batch
         backprop_batch = self.get_batch(final)
         if backprop_batch:
-            print(len(backprop_batch))
             annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
             self.emit_backward_pass(annotated_backward_batch)
 
