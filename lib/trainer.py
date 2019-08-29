@@ -22,7 +22,7 @@ class Example(object):
             self.output = output.detach().cpu()
         if softmax_output is not None:
             self.softmax_output = softmax_output.detach().cpu()
-        self.target = target.detach()
+        self.target = target.detach().cpu()
         self.datum = datum.detach().cpu()
         self.image_id = image_id
         self.select_probability = select_probability
@@ -229,18 +229,18 @@ class MemoizedTrainer(Trainer):
             handler(batch)
 
     def create_example_batch(self, data, targets, image_ids):
-        data, targets = data.to(self.device), targets.to(self.device)
+        #data, targets = data.to(self.device), targets.to(self.device)
         batch = []
         for target, datum, image_id in zip(targets, data, image_ids):
             image_id = image_id.item()
-            if image_id not in self.examples.keys():
+            if image_id not in self.examples:
                 example = Example(target=target, datum=datum, image_id=image_id, select_probability=1)
                 example.epochs_since_update = 0
                 example.select = True
                 self.examples[image_id] = example
             else:
                 example = self.examples[image_id]
-                example.datum = datum.detach()
+                example.datum = datum.detach().cpu()
             batch.append(example)
             
         return batch

@@ -398,7 +398,7 @@ class Logger(object):
         self.partition_num_skipped = 0
         self.partition_num_correct = 0
 
-        self.debug = True
+        self.debug = False
 
         if start_time_seconds is None:
             self.start_time_seconds = time.time()
