@@ -122,8 +122,6 @@ class SelectiveBackpropper:
 
         self.trainer.on_backward_pass(self.logger.handle_backward_batch)
         self.trainer.on_forward_pass(self.logger.handle_forward_batch)
-        if strategy == "sb":
-            self.trainer.on_forward_mark(self.logger.handle_forward_mark)
 
     def next_epoch(self):
         self.logger.next_epoch()

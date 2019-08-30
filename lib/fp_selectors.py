@@ -55,7 +55,7 @@ class StaleSelector():
         self.logger['counter'] += 1
 
         example.epochs_since_update += 1
-        if example.epochs_since_update >= self.threshold:
+        if not hasattr(example, 'loss') or example.epochs_since_update >= self.threshold:
             self.logger['forward'] += 1
             return True
         else:

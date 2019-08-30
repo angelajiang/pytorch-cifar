@@ -443,14 +443,11 @@ class Logger(object):
         self.partition_num_skipped = 0
         self.partition_num_correct = 0
 
-    def handle_forward_mark(self, batch):
-        num_skipped_fp = sum([int(not example.forward_select) for example in batch])
-        self.global_num_skipped_fp += num_skipped_fp
-
     def handle_forward_batch(self, batch):
         # Populate batch_stats
         # self.partition_loss += sum([example.loss for example in batch])
-        # self.global_num_forwards += len(batch)
+        num_skipped_fp = sum([int(not example.forward_select) for example in batch])
+        self.global_num_skipped_fp += num_skipped_fp
         self.global_num_forwards += sum([int(example.forward_select) for example in batch])
 
     def handle_backward_batch(self, batch):

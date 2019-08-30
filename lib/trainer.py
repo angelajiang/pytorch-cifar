@@ -212,20 +212,12 @@ class MemoizedTrainer(Trainer):
                                 forwardlr)
 
         self.fp_selector = fp_selector
-        self.forward_mark_handlers = []
         self.forward_queue = []
         self.forward_batch_size = batch_size
         self.forwardpropper = forwardproppers.CutoutForwardpropper(device,
                                                                    net,
                                                                    loss_fn)
         self.examples = {}
-
-    def on_forward_mark(self, handler):
-        self.forward_mark_handlers.append(handler)
-
-    def emit_forward_mark(self, batch):
-        for handler in self.forward_mark_handlers:
-            handler(batch)
 
     def create_example_batch(self, data, targets, image_ids):
         #data, targets = data.to(self.device), targets.to(self.device)
@@ -247,7 +239,6 @@ class MemoizedTrainer(Trainer):
     def train_batch(self, batch, final):
         examples = self.create_example_batch(*batch)
         batch_marked_for_fp = self.fp_selector.mark(examples)
-        self.emit_forward_mark(batch_marked_for_fp)
         self.forward_queue += batch_marked_for_fp
         batch_to_fp = self.get_forward_batch(final)
         if batch_to_fp:
