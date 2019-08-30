@@ -73,6 +73,5 @@ class SamplingBackpropper(object):
                                              is_corrects):
             example.loss = loss.item()
             example.correct = is_correct.item()
-            example.epochs_since_update = 0
 
         return batch
