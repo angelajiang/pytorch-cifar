@@ -302,6 +302,7 @@ class NoFilterTrainer(Trainer):
                                 forwardlr)
 
         self.on_backward_pass(self.update_num_forwards)
+        self.examples = {}
 
     def train_batch(self, batch, final):
         annotated_forward_batch = self.create_example_batch(*batch)
@@ -313,13 +314,19 @@ class NoFilterTrainer(Trainer):
             self.emit_forward_pass(annotated_backward_batch)
 
     def create_example_batch(self, data, targets, image_ids):
-        # data, targets = data.to(self.device), targets.to(self.device)
         batch = []
         for target, datum, image_id in zip(targets, data, image_ids):
-            example = Example(target=target, datum=datum, image_id=image_id, select_probability=1)
-            example.select = True
-            example.foward_select = True
+            image_id = image_id.item()
+            if image_id not in self.examples:
+                example = Example(target=target, datum=datum, image_id=image_id, select_probability=1)
+                example.select = True
+                example.forward_select = True
+                self.examples[image_id] = example
+            else:
+                example = self.examples[image_id]
+                example.datum = datum.detach().cpu()
             batch.append(example)
+            
         return batch
 
 '''
