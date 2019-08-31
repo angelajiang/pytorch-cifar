@@ -49,8 +49,6 @@ class SelectiveBackpropper:
         self.selector = None
         self.fp_selector = None
         if strategy == "kath":
-            print("Make sure that kath strategy is consistent.")
-            exit()
             self.selector = None
             final_backpropper = backproppers.SamplingBackpropper(device,
                                                                  model,

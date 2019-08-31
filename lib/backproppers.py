@@ -76,3 +76,15 @@ class SamplingBackpropper(object):
             example.epochs_since_update = 0
 
         return batch
+
+class AlwaysOnBackpropper(object):
+
+    def __init__(self, device, net, optimizer, loss_fn):
+        super(SamplingBackpropper, self).__init__(device,
+                                                  net,
+                                                  optimizer,
+                                                  loss_fn)
+
+    def _get_chosen_examples(self, batch):
+        return batch
+
