@@ -32,7 +32,7 @@ class SamplingBackpropper(object):
         self.loss_fn = loss_fn
 
     def _get_chosen_examples(self, batch):
-        return [example for example in batch if example.select]
+        return [em.example for em in batch if em.example.select]
 
     def _get_chosen_data_tensor(self, batch):
         chosen_data = [example.datum for example in batch]
@@ -73,7 +73,6 @@ class SamplingBackpropper(object):
                                              is_corrects):
             example.loss = loss.item()
             example.correct = is_correct.item()
-            example.epochs_since_update = 0
 
         return batch
 

@@ -37,11 +37,11 @@ class PrimedSelector(object):
 
 
 class AlwaysOnSelector():
-    def mark(self, examples):
-        for example in examples:
-            example.forward_select_probability = 1.
-            example.forward_select = True
-        return examples
+    def mark(self, examples_and_metadata):
+        for em in examples_and_metadata:
+            em.example.forward_select_probability = 1.
+            em.example.forward_select = True
+        return examples_and_metadata
 
 class StaleSelector():
     def __init__(self):
@@ -49,24 +49,25 @@ class StaleSelector():
         self.logger = {"counter": 0, "forward": 0, "no_forward": 0}
         print("StaleSelector_{}".format(self.threshold))
 
-    def select(self, example):
+    def select(self, em):
         if self.logger['counter'] % 50000 == 0:
             print(self.logger)
         self.logger['counter'] += 1
 
-        example.epochs_since_update += 1
-        if not hasattr(example, 'loss') or example.epochs_since_update >= self.threshold:
+        em.metadata["epochs_since_update"] += 1
+        if not hasattr(em.example, 'loss') or em.metadata["epochs_since_update"] >= self.threshold:
             self.logger['forward'] += 1
             return True
         else:
             self.logger['no_forward'] += 1
             return False
 
-    def mark(self, examples):
-        for example in examples:
-            example.forward_select = self.select(example)
-        return examples
+    def mark(self, examples_and_metadata):
+        for em in examples_and_metadata: 
+            em.example.forward_select = self.select(em)
+        return examples_and_metadata
 
+'''
 class ThresholdSelector():
     def __init__(self):
         self.logger = {"counter": 0, "path_3": 0, "path_2": 0, "path_1": 0}
@@ -110,3 +111,4 @@ class ThresholdSelector():
         for example in examples:
             example.forward_select = self.select(example)
         return examples
+'''
