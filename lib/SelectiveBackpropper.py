@@ -66,7 +66,7 @@ class SelectiveBackpropper:
                                                batch_size,
                                                batch_size * kath_oversampling_rate,
                                                loss_fn,
-                                               lr_sched,
+                                               lr_schedule=lr_sched,
                                                forwardlr=forwardlr)
         elif strategy == "nofilter":
             self.backpropper = backproppers.SamplingBackpropper(device,

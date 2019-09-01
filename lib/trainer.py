@@ -270,8 +270,6 @@ class NoFilterTrainer(Trainer):
                                 lr_schedule,
                                 forwardlr)
 
-        self.on_backward_pass(self.update_num_forwards)
-
     def train_batch(self, batch, final):
         annotated_forward_batch = self.create_example_batch(*batch)
         self.backprop_queue += annotated_forward_batch
