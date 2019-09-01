@@ -44,7 +44,7 @@ class SelectiveBackpropper:
         start_epoch = 0
         start_num_backpropped = 0
         start_num_skipped = 0
-        kath_oversampling_rate = 4
+        kath_oversampling_rate = 3
 
         self.selector = None
         self.fp_selector = None
