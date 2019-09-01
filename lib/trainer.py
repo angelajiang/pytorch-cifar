@@ -81,10 +81,12 @@ class Trainer(object):
         self.backward_pass_handlers = []
         self.global_num_backpropped = 0
         self.global_num_forwards = 0
+        self.global_num_analyzed = 0
         self.forwardlr = forwardlr
         self.max_num_backprops = max_num_backprops
         self.on_backward_pass(self.update_num_backpropped)
         self.on_forward_pass(self.update_num_forwards)
+        self.on_forward_pass(self.update_num_analyzed)
         self.example_metadata = {}
         if lr_schedule:
             self.load_lr_schedule(lr_schedule)
@@ -95,6 +97,9 @@ class Trainer(object):
 
     def update_num_forwards(self, batch):
         self.global_num_forwards += sum([1 for em in batch if em.example.forward_select])
+
+    def update_num_analyzed(self, batch):
+        self.global_num_analyzed += len(batch)
 
     def on_forward_pass(self, handler):
         self.forward_pass_handlers.append(handler)
@@ -127,7 +132,7 @@ class Trainer(object):
     @property
     def counter(self):
         if self.forwardlr:
-            counter = self.global_num_forwards
+            counter = self.global_num_analyzed
         else:
             counter = self.global_num_backpropped
         return counter
