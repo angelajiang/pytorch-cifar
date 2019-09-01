@@ -55,11 +55,12 @@ class StaleSelector():
         self.logger['counter'] += 1
 
         em.metadata["epochs_since_update"] += 1
-        if not hasattr(em.example, 'loss') or em.metadata["epochs_since_update"] >= self.threshold:
+        if 'loss' not in em.metadata or em.metadata["epochs_since_update"] >= self.threshold:
             self.logger['forward'] += 1
             return True
         else:
             self.logger['no_forward'] += 1
+            em.example.loss = em.metadata["loss"]
             return False
 
     def mark(self, examples_and_metadata):

@@ -48,12 +48,13 @@ class CutoutForwardpropper(object):
             is_corrects = predicted.eq(targets)
 
             for em, loss, is_correct in zip(selected_examples,
-                                           losses,
-                                           is_corrects):
+                                            losses,
+                                            is_corrects):
 
                 em.example.loss = loss.item()
                 em.example.correct = is_correct.item()
                 em.metadata["epochs_since_update"] = 0
+                em.metadata["loss"] = em.example.loss
 
         return batch
 
