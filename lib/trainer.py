@@ -5,6 +5,7 @@ import torch.nn as nn
 import forwardproppers
 import sb_util
 
+
 class ExampleAndMetadata(object):
     def __init__(self, example, metadata):
         self.example = example
@@ -300,21 +301,39 @@ class KathTrainer(Trainer):
                                           max_num_backprops,
                                           lr_schedule,
                                           forwardlr)
+        self.first = True
         self.pool = []
         self.pool_size = pool_size
 
     def train(self, trainloader):
-        for i, batch in enumerate(trainloader):
-            forward_pass_batch = self.forward_pass(*batch)
-            self.emit_forward_pass(forward_pass_batch)
-            self.pool += forward_pass_batch
-            if len(self.pool) >= self.pool_size:
-                self.train_pool(self.pool)
-                self.pool = []
+        if self.first:
+            for i, batch in enumerate(trainloader):
+                forward_pass_batch = self.forward_pass(*batch)
+                self.emit_forward_pass(forward_pass_batch)
+                self.pool += forward_pass_batch
+                if len(self.pool) >= self.batch_size:
+                    self.train_all(self.pool)
+                    self.pool = []
+                self.first = False
+
+        else:
+            for i, batch in enumerate(trainloader):
+                forward_pass_batch = self.forward_pass(*batch)
+                self.emit_forward_pass(forward_pass_batch)
+                self.pool += forward_pass_batch
+                if len(self.pool) >= self.pool_size:
+                    self.train_pool(self.pool)
+                    self.pool = []
 
     def train_pool(self, pool):
         backprop_batch = self.get_batch(pool)
         annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
+        self.emit_backward_pass(annotated_backward_batch)
+
+    def train_all(self, pool):
+        for em in pool:
+            em.example.select = True
+        annotated_backward_batch = self.backpropper.backward_pass(pool)
         self.emit_backward_pass(annotated_backward_batch)
 
     def get_probabilities(self, pool):
