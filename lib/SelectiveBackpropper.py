@@ -15,7 +15,7 @@ class SelectiveBackpropper:
     def __init__(self,
                  model,
                  optimizer,
-                 sampling_min,
+                 prob_pow,
                  batch_size,
                  lr_sched,
                  num_classes,
@@ -33,11 +33,11 @@ class SelectiveBackpropper:
         #num_images_to_prime = 0
 
         log_interval = 1
+        sampling_min = 0
         sampling_max = 1
         max_history_len = 1024
         prob_loss_fn = nn.CrossEntropyLoss
         loss_fn = nn.CrossEntropyLoss
-        prob_pow = 3
         sample_size = 0 # only needed for kath, topk, lowk
 
         # Params for resuming from checkpoint
