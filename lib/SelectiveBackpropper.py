@@ -115,6 +115,7 @@ class SelectiveBackpropper:
                                                 self.backpropper,
                                                 batch_size,
                                                 loss_fn,
+                                                num_training_images,
                                                 lr_schedule=lr_sched,
                                                 forwardlr=forwardlr)
         else:

@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import lib.forwardproppers as forwardproppers
 import lib.sb_util as sb_util
+import lib.kath_util as kath_util
 import time
 from copy import deepcopy
 from torch.multiprocessing import Process, Queue
@@ -273,6 +274,7 @@ class AsyncTrainer(MemoizedTrainer):
                  backpropper,
                  batch_size,
                  loss_fn,
+                 num_images,
                  max_num_backprops=float('inf'),
                  lr_schedule=None,
                  forwardlr=False):
@@ -308,9 +310,9 @@ class AsyncTrainer(MemoizedTrainer):
         self.forwardpropper = forwardproppers.CutoutForwardpropper(self.device2,
                                                                    net,
                                                                    loss_fn)
-        self.queue = Queue()
-
-
+        self.shared_imageid_array= Array("i", num_images, lock=True)
+        self.shared_final_array = Array("b", num_images, lock=True)
+        self.head_ptr = Value("i", 0)
 
     def train(self, trainloader):
         print("Started train for new epoch")
@@ -323,10 +325,9 @@ class AsyncTrainer(MemoizedTrainer):
         selector_p.start()
 
         while True:
-            queue_element = self.queue.get()         # Read from the queue and do nothing
-            if queue_element == "DONE":
-                print("Received msg DONE, epoch is over, exiting train loop")
-                break
+
+            image_ids = self.shared
+
             annotated_forward_batch = queue_element.em
             self.backprop_queue += annotated_forward_batch
             backprop_batch = self.get_batch(queue_element.final)
@@ -429,28 +430,26 @@ class KathTrainer(Trainer):
                                           max_num_backprops,
                                           lr_schedule,
                                           forwardlr)
-        self.first = True
+        self.condition = kath_util.VarianceReductionCondition()
         self.pool = []
         self.pool_size = pool_size
 
     def train(self, trainloader):
-        if self.first:
-            for i, batch in enumerate(trainloader):
-                forward_pass_batch = self.forward_pass(*batch)
-                self.emit_forward_pass(forward_pass_batch)
-                self.pool += forward_pass_batch
-                if len(self.pool) >= self.batch_size:
-                    self.train_all(self.pool)
-                    self.pool = []
-                self.first = False
-
-        else:
+        if self.condition.satified:
             for i, batch in enumerate(trainloader):
                 forward_pass_batch = self.forward_pass(*batch)
                 self.emit_forward_pass(forward_pass_batch)
                 self.pool += forward_pass_batch
                 if len(self.pool) >= self.pool_size:
                     self.train_pool(self.pool)
+                    self.pool = []
+        else:
+            for i, batch in enumerate(trainloader):
+                forward_pass_batch = self.forward_pass(*batch)
+                self.emit_forward_pass(forward_pass_batch)
+                self.pool += forward_pass_batch
+                if len(self.pool) >= self.batch_size:
+                    self.train_all(self.pool)
                     self.pool = []
 
     def train_pool(self, pool):
