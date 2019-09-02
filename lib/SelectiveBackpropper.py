@@ -1,12 +1,12 @@
-import backproppers
-import calculators
-import fp_selectors
-import loggers
-import selectors
+import lib.backproppers as backproppers
+import lib.calculators as calculators
+import lib.fp_selectors as fp_selectors
+import lib.loggers as loggers
+import lib.selectors as selectors
 import time
 import torch
 import torch.nn as nn
-import trainer as trainer
+import lib.trainer as trainer
 
 start_time_seconds = time.time()
 
@@ -48,6 +48,7 @@ class SelectiveBackpropper:
 
         self.selector = None
         self.fp_selector = None
+
         if strategy == "kath":
             self.selector = None
             final_backpropper = backproppers.SamplingBackpropper(device,
@@ -80,6 +81,42 @@ class SelectiveBackpropper:
                                                    loss_fn,
                                                    lr_schedule=lr_sched,
                                                    forwardlr=forwardlr)
+        elif strategy == "sb-async":
+            assert torch.cuda.device_count() == 2
+            device1 = "cuda:0" #torch.cuda.device(0)
+            device2 = "cuda:1" #torch.cuda.device(1)
+
+            probability_calculator = calculators.get_probability_calculator(calculator,
+                                                                            device2,
+                                                                            prob_loss_fn,
+                                                                            sampling_min,
+                                                                            sampling_max,
+                                                                            num_classes,
+                                                                            max_history_len,
+                                                                            prob_pow)
+            self.selector = selectors.get_selector("sampling",
+                                                   probability_calculator,
+                                                   num_images_to_prime,
+                                                   sample_size)
+
+            self.fp_selector = fp_selectors.get_selector(fp_selector_type,
+                                                         num_images_to_prime)
+
+            self.backpropper = backproppers.SamplingBackpropper(device1,
+                                                                model,
+                                                                optimizer,
+                                                                loss_fn)
+
+            self.trainer = trainer.AsyncTrainer(device1,
+                                                device2,
+                                                model,
+                                                self.selector,
+                                                self.fp_selector,
+                                                self.backpropper,
+                                                batch_size,
+                                                loss_fn,
+                                                lr_schedule=lr_sched,
+                                                forwardlr=forwardlr)
         else:
             probability_calculator = calculators.get_probability_calculator(calculator,
                                                                             device,

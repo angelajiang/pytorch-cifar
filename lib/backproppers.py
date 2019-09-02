@@ -1,6 +1,7 @@
 import torch
 import time
 import torch.nn as nn
+import lib.sb_util
 
 class PrimedBackpropper(object):
     def __init__(self, initial, final, initial_num_images):
@@ -21,7 +22,6 @@ class PrimedBackpropper(object):
 
     def backward_pass(self, *args, **kwargs):
         return self.get_backpropper().backward_pass(*args, **kwargs)
-
 
 class SamplingBackpropper(object):
 

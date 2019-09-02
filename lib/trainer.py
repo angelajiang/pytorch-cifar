@@ -1,9 +1,13 @@
 import json
 import numpy as np
+import threading
 import torch
 import torch.nn as nn
-import forwardproppers
-import sb_util
+import lib.forwardproppers as forwardproppers
+import lib.sb_util as sb_util
+import time
+from copy import deepcopy
+from torch.multiprocessing import Process, Queue
 
 
 class ExampleAndMetadata(object):
@@ -253,6 +257,127 @@ class MemoizedTrainer(Trainer):
             self.forward_queue = []
             return forward_batch
         return None
+
+class QueueElement:
+    def __init__(self, examples_and_metadata, final):
+        self.em = examples_and_metadata
+        self.final = final
+
+class AsyncTrainer(MemoizedTrainer):
+    def __init__(self,
+                 device1,
+                 device2,
+                 net,
+                 selector,
+                 fp_selector,
+                 backpropper,
+                 batch_size,
+                 loss_fn,
+                 max_num_backprops=float('inf'),
+                 lr_schedule=None,
+                 forwardlr=False):
+
+        self.device1 = device1
+        self.device2 = device2
+        assert self.device1 != self.device2
+
+        self.net = net
+        self.selector = selector
+        self.backpropper = backpropper
+        self.loss_fn = loss_fn
+        self.batch_size = batch_size
+        self.backprop_queue = []
+        self.forward_pass_handlers = []
+        self.backward_pass_handlers = []
+        self.global_num_backpropped = 0
+        self.global_num_forwards = 0
+        self.global_num_analyzed = 0
+        self.forwardlr = forwardlr
+        self.max_num_backprops = max_num_backprops
+        self.on_backward_pass(self.update_num_backpropped)
+        self.on_forward_pass(self.update_num_forwards)
+        self.on_forward_pass(self.update_num_analyzed)
+        self.example_metadata = {}
+        if lr_schedule:
+            self.load_lr_schedule(lr_schedule)
+            self.on_backward_pass(self.update_learning_rate)
+
+        self.fp_selector = fp_selector
+        self.forward_queue = []
+        self.forward_batch_size = batch_size
+        self.forwardpropper = forwardproppers.CutoutForwardpropper(self.device2,
+                                                                   net,
+                                                                   loss_fn)
+        self.queue = Queue()
+
+
+
+    def train(self, trainloader):
+        print("Started train for new epoch")
+        selector_net = deepcopy(self.net)
+        selector_net.to(self.device2)
+        selector_p = Process(target=self.selector_process, args=(self.queue,
+                                                                 selector_net,
+                                                                 trainloader))
+        #selector_p.daemon = True
+        selector_p.start()
+
+        while True:
+            queue_element = self.queue.get()         # Read from the queue and do nothing
+            if queue_element == "DONE":
+                print("Received msg DONE, epoch is over, exiting train loop")
+                break
+            annotated_forward_batch = queue_element.em
+            self.backprop_queue += annotated_forward_batch
+            backprop_batch = self.get_batch(queue_element.final)
+            if backprop_batch:
+                annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
+                self.emit_backward_pass(annotated_backward_batch)
+
+    def selector_process(self, queue, selector_net, trainloader):
+        self.forwardpropper.net = selector_net
+
+        for i, batch in enumerate(trainloader):
+            if self.stopped: break
+            if i == len(trainloader) - 1:
+                final = True
+            else:
+                final = False
+            annotated_forward_batch = self.mark_batch(batch, final=final)
+            queue_element = QueueElement(annotated_forward_batch, final)
+            queue.put(queue_element)
+        queue.put("DONE")
+        print("selector_process completed epoch")
+        time.sleep(30)
+        print("selector_process completed sleep")
+
+    def mark_batch(self, batch, final):
+        EMs = self.create_example_batch(*batch)
+        batch_marked_for_fp = self.fp_selector.mark(EMs)
+        self.forward_queue += batch_marked_for_fp
+        batch_to_fp = self.get_forward_batch(final)
+        if batch_to_fp:
+            forward_pass_batch = self.forwardpropper.forward_pass(batch_to_fp)
+            annotated_forward_batch = self.selector.mark(forward_pass_batch)
+            self.emit_forward_pass(annotated_forward_batch)
+            return annotated_forward_batch
+
+    def get_forward_batch(self, final):
+        num_images_to_fp = 0
+        max_queue_size = self.forward_batch_size * 4
+        for index, em in enumerate(self.forward_queue):
+            num_images_to_fp += int(em.example.forward_select)
+            if num_images_to_fp == self.forward_batch_size:
+                # Note: includes item that should and shouldn't be forward propped
+                forward_batch = self.forward_queue[:index+1]
+                self.forward_queue = self.forward_queue[index+1:]
+                return forward_batch
+        if final or len(self.forward_queue) > max_queue_size:
+            forward_batch = self.forward_queue
+            self.forward_queue = []
+            return forward_batch
+        return None
+
 
 class NoFilterTrainer(Trainer):
     def __init__(self,
