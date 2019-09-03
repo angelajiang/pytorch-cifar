@@ -359,8 +359,8 @@ class KathTrainer(Trainer):
             example.select_probability = prob
             example.select = False
 
-        # Sample batch_size with replacement
-        indices = np.random.choice(range(len(pool)), self.batch_size, replace=True, p=probs)
+        # Sample batch_size without replacement
+        indices = np.random.choice(range(len(pool)), self.batch_size, replace=False, p=probs)
         weights = self.sample_weights(indices, probs)
 
         # Populate batch with sampled_choices
@@ -370,7 +370,7 @@ class KathTrainer(Trainer):
             em.example.weight = weight[0]
 
         # This invalidates number of skipped logging
-        return chosen_ems
+        return examples_and_metadata
 
     def get_probabilities_float(self, pool):
         loss_sum = sum([example.loss for example in pool])
