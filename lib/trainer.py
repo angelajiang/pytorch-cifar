@@ -378,7 +378,7 @@ class KathTrainer(Trainer):
         for em in pool:
             em.example.select_probability = 1
             em.example.select = True
-            example.weight = 1.
+            em.example.weight = 1.
         annotated_backward_batch = self.backpropper.backward_pass(pool)
         self.emit_backward_pass(annotated_backward_batch)
 
@@ -391,3 +391,40 @@ class KathTrainer(Trainer):
 
         self.net.eval()
         with torch.no_grad():
+            outputs = self.net(data)
+
+        losses = self.loss_fn(reduce=False)(outputs, targets)
+        softmax_outputs = nn.Softmax()(outputs)
+
+        examples = zip(losses, outputs, softmax_outputs, targets, data, image_ids)
+        return [ExampleAndMetadata(Example(*example), {}) for example in examples]
+
+
+class KathBaselineTrainer(KathTrainer):
+    def __init__(self,
+                 device,
+                 net,
+                 backpropper,
+                 batch_size,
+                 pool_size,
+                 loss_fn,
+                 max_num_backprops=float('inf'),
+                 lr_schedule=None,
+                 forwardlr=False):
+
+        super(KathBaselineTrainer, self).__init__(device,
+                                                  net,
+                                                  backpropper,
+                                                  batch_size,
+                                                  pool_size,
+                                                  loss_fn,
+                                                  max_num_backprops=float('inf'),
+                                                  lr_schedule=None,
+                                                  forwardlr=False)
+
+    def get_probabilities(self, pool):
+        loss_sum = sum([example.loss.item() for example in pool])
+        probs = [1. / len(pool) for example in pool]
+        return probs
+
+
