@@ -326,6 +326,7 @@ class KathTrainer(Trainer):
 
     def train(self, trainloader):
         if self.condition.satisfied:
+            print("Condition satisified")
             for i, batch in enumerate(trainloader):
                 forward_pass_batch = self.forward_pass(*batch)
                 self.emit_forward_pass(forward_pass_batch)
@@ -336,6 +337,7 @@ class KathTrainer(Trainer):
                     self.emit_backward_pass(annotated_backward_batch)
                     self.pool = []
         else:
+            print("Condition not satisified")
             for i, batch in enumerate(trainloader):
                 forward_pass_batch = self.forward_pass(*batch)
                 self.emit_forward_pass(forward_pass_batch)
@@ -362,12 +364,13 @@ class KathTrainer(Trainer):
         weights = self.sample_weights(indices, probs)
 
         # Populate batch with sampled_choices
-        chosen_examples = [example for i, example in enumerate(pool) if i in indices]
-        for example, weight in zip(chosen_examples, weights):
-            example.select = True
-            example.weight = weight[0]
+        chosen_ems = [examples_and_metadata[i] for i in indices]
+        for em, weight in zip(chosen_ems, weights):
+            em.example.select = True
+            em.example.weight = weight[0]
 
-        return examples_and_metadata
+        # This invalidates number of skipped logging
+        return chosen_ems
 
     def get_probabilities_float(self, pool):
         loss_sum = sum([example.loss for example in pool])

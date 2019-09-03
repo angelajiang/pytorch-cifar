@@ -465,7 +465,8 @@ class Logger(object):
             self.partition_backpropped_loss += sum([em.example.backpropped_loss
                                                     for em in batch
                                                     if em.example.backpropped_loss])
-            self.partition_num_correct += sum([int(example.correct) for em in batch])
+            chosen = [em for em in batch if em.example.select]
+            self.partition_num_correct += sum([1 for em in chosen if em.example.correct])
 
             self.write()
 
