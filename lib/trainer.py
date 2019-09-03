@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import forwardproppers
 import sb_util
+import kath_util
 
 
 class ExampleAndMetadata(object):
@@ -304,12 +305,29 @@ class KathTrainer(Trainer):
                                           max_num_backprops,
                                           lr_schedule,
                                           forwardlr)
-        self.first = True
+
+        b = batch_size
+        B = pool_size
+        tau_th = float(B + 3*b) / (3*b)
+        self.condition = kath_util.VarianceReductionCondition(tau_th)
+
         self.pool = []
         self.pool_size = pool_size
+        self.epoch_count = 0
 
     def train(self, trainloader):
-        if self.first:
+        self.epoch_count += 1
+        if self.condition.satisfied:
+            print("Condition satisfied at epoch {}".format(self.epoch_count))
+            for i, batch in enumerate(trainloader):
+                forward_pass_batch = self.forward_pass(*batch)
+                self.emit_forward_pass(forward_pass_batch)
+                self.pool += forward_pass_batch
+                if len(self.pool) >= self.pool_size:
+                    self.train_pool(self.pool)
+                    self.pool = []
+        else:
+            print("Condition not satisfied at epoch {}".format(self.epoch_count))
             for i, batch in enumerate(trainloader):
                 forward_pass_batch = self.forward_pass(*batch)
                 self.emit_forward_pass(forward_pass_batch)
@@ -319,19 +337,15 @@ class KathTrainer(Trainer):
                     self.pool = []
                 self.first = False
 
-        else:
-            for i, batch in enumerate(trainloader):
-                forward_pass_batch = self.forward_pass(*batch)
-                self.emit_forward_pass(forward_pass_batch)
-                self.pool += forward_pass_batch
-                if len(self.pool) >= self.pool_size:
-                    self.train_pool(self.pool)
-                    self.pool = []
+    def get_probabilities_float(self, pool):
+        loss_sum = sum([example.loss for example in pool])
+        probs = [example.loss / loss_sum for example in pool]
+        return probs
 
-    def train_pool(self, pool):
-        backprop_batch = self.get_batch(pool)
-        annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
-        self.emit_backward_pass(annotated_backward_batch)
+    def get_probabilities(self, pool):
+        loss_sum = sum([example.loss.item() for example in pool])
+        probs = [example.loss.item() / loss_sum for example in pool]
+        return probs
 
     def train_all(self, pool):
         for em in pool:
@@ -339,14 +353,18 @@ class KathTrainer(Trainer):
         annotated_backward_batch = self.backpropper.backward_pass(pool)
         self.emit_backward_pass(annotated_backward_batch)
 
-    def get_probabilities(self, pool):
-        loss_sum = sum([example.loss.item() for example in pool])
-        probs = [example.loss.item() / loss_sum for example in pool]
-        return probs
+        probs = self.get_probabilities_float([em.example for em in pool])
+        self.condition.update(probs)
+
+    def train_pool(self, pool):
+        backprop_batch = self.get_batch(pool)
+        annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
+        self.emit_backward_pass(annotated_backward_batch)
 
     def get_batch(self, examples_and_metadata):
         pool = [em.example for em in examples_and_metadata]
         probs = self.get_probabilities(pool)
+        self.condition.update(probs)
         for example, prob in zip(pool, probs):
             example.select_probability = prob
             example.select = False
