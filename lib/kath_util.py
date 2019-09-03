@@ -37,7 +37,6 @@ class VarianceReductionCondition(Condition):
 
     @property
     def satisfied(self):
-        print(self._vr, self._vr_th)
         self._previous_vr = self._vr
         return self._vr > self._vr_th
 

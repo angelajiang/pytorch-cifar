@@ -22,6 +22,7 @@ class SelectiveBackpropper:
                  num_training_images,
                  forwardlr,
                  strategy,
+                 kath_oversampling_rate,
                  calculator="relative",
                  fp_selector_type="alwayson"):
 
@@ -44,22 +45,15 @@ class SelectiveBackpropper:
         start_epoch = 0
         start_num_backpropped = 0
         start_num_skipped = 0
-        kath_oversampling_rate = 3
 
         self.selector = None
         self.fp_selector = None
         if strategy == "kath":
             self.selector = None
-            final_backpropper = backproppers.SamplingBackpropper(device,
-                                                                 model,
-                                                                 optimizer,
-                                                                 loss_fn)
-            self.backpropper = backproppers.PrimedBackpropper(backproppers.SamplingBackpropper(device,
-                                                                                                  model,
-                                                                                                  optimizer,
-                                                                                                  loss_fn),
-                                                              final_backpropper,
-                                                              num_images_to_prime)
+            self.backpropper = backproppers.ReweightedBackpropper(device,
+                                                                  model,
+                                                                  optimizer,
+                                                                  loss_fn)
             self.trainer = trainer.KathTrainer(device,
                                                model,
                                                self.backpropper,
