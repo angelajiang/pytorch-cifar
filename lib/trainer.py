@@ -360,7 +360,7 @@ class KathTrainer(Trainer):
             example.select = False
 
         # Sample batch_size without replacement
-        indices = np.random.choice(range(len(pool)), self.batch_size, replace=False, p=probs)
+        indices = np.random.choice(range(len(pool)), self.batch_size, replace=True, p=probs)
         weights = self.sample_weights(indices, probs)
 
         # Populate batch with sampled_choices

@@ -50,10 +50,10 @@ class SelectiveBackpropper:
         self.fp_selector = None
         if strategy == "kath":
             self.selector = None
-            self.backpropper = backproppers.ReweightedBackpropper(device,
-                                                                  model,
-                                                                  optimizer,
-                                                                  loss_fn)
+            self.backpropper = backproppers.SamplingBackpropper(device,
+                                                                model,
+                                                                optimizer,
+                                                                loss_fn)
             self.trainer = trainer.KathTrainer(device,
                                                model,
                                                self.backpropper,
