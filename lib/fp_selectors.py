@@ -1,13 +1,13 @@
 import numpy as np
 
 # TODO: Transform into base classes
-def get_selector(selector_type, num_images_to_prime):
+def get_selector(selector_type, num_images_to_prime, staleness=2):
     if selector_type == "threshold":
         final_selector = ThresholdSelector()
     elif selector_type == "alwayson":
         final_selector = AlwaysOnSelector()
     elif selector_type == "stale":
-        final_selector = StaleSelector()
+        final_selector = StaleSelector(staleness)
     else:
         print("FP Selector must be in {alwayson, threshold}")
         exit()
@@ -44,8 +44,8 @@ class AlwaysOnSelector():
         return examples_and_metadata
 
 class StaleSelector():
-    def __init__(self):
-        self.threshold = 2
+    def __init__(self, threshold):
+        self.threshold = threshold
         self.logger = {"counter": 0, "forward": 0, "no_forward": 0}
         print("StaleSelector_{}".format(self.threshold))
 

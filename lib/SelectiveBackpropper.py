@@ -24,7 +24,8 @@ class SelectiveBackpropper:
                  strategy,
                  kath_oversampling_rate,
                  calculator="relative",
-                 fp_selector_type="alwayson"):
+                 fp_selector_type="alwayson",
+                 staleness=2):
 
         ## Hardcoded params
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -89,7 +90,8 @@ class SelectiveBackpropper:
                                                    sample_size)
 
             self.fp_selector = fp_selectors.get_selector(fp_selector_type,
-                                                         num_images_to_prime)
+                                                         num_images_to_prime,
+                                                         staleness=staleness)
 
             self.backpropper = backproppers.SamplingBackpropper(device,
                                                                 model,
