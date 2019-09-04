@@ -59,7 +59,7 @@ class SelectiveBackpropper:
                                                model,
                                                self.backpropper,
                                                batch_size,
-                                               batch_size * kath_oversampling_rate,
+                                               int(batch_size * kath_oversampling_rate),
                                                loss_fn,
                                                lr_schedule=lr_sched,
                                                forwardlr=forwardlr)
