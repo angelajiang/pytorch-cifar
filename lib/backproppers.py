@@ -1,6 +1,7 @@
 import torch
 import time
 import torch.nn as nn
+import losses
 
 class PrimedBackpropper(object):
     def __init__(self, initial, final, initial_num_images):
@@ -85,6 +86,8 @@ class ReweightedBackpropper(SamplingBackpropper):
                                                     optimizer,
                                                     loss_fn)
 
+        self.loss_fn = losses.WeightedCrossEntropyLoss
+
     def _get_chosen_weights_tensor(self, batch):
         chosen_weights = [torch.tensor(em.example.weight, dtype=torch.float) for em in batch]
         return torch.stack(chosen_weights)
@@ -99,13 +102,10 @@ class ReweightedBackpropper(SamplingBackpropper):
 
         # Run forward pass
         outputs = self.net(data) 
-        losses = self.loss_fn(reduce=False)(outputs, targets)
+        losses = self.loss_fn()(outputs, targets, weights)
         softmax_outputs = nn.Softmax()(outputs)             # OPT: not necessary when logging is off
         _, predicted = outputs.max(1)
         is_corrects = predicted.eq(targets)
-
-        # Scale each loss by image-specific select probs
-        losses = torch.mul(losses, weights)
 
         # Reduce loss
         loss = losses.mean()
