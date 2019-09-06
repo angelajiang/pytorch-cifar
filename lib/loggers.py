@@ -17,7 +17,7 @@ class TargetConfidenceLogger:
 
         target_confidences_pickle_dir = os.path.join(self.pickle_dir, "target_confidences")
         self.target_confidences_pickle_file = os.path.join(target_confidences_pickle_dir,
-                                                           "{}_target_confidences.pickle".format(self.pickle_prefix))
+                                                           "target_confidences.pickle")
 
         # Make images hist pickle path
         if not os.path.exists(target_confidences_pickle_dir):
@@ -29,13 +29,12 @@ class TargetConfidenceLogger:
         self.target_confidences[epoch]["confidences"] += confidences
         self.target_confidences[epoch]["results"] += results
         self.target_confidences[epoch]["num_backpropped"] = num_backpropped
-        if epoch % self.write_every == 0:
-            self.write_summaries()
 
-    def write_summaries(self):
-        with open(self.target_confidences_pickle_file, "wb") as handle:
-            print(self.target_confidences_pickle_file)
-            pickle.dump(self.target_confidences, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    def write_summaries_maybe(self, epoch):
+        if epoch % self.write_every == 0:
+            with open(self.target_confidences_pickle_file, "wb") as handle:
+                print("Writing to", self.target_confidences_pickle_file)
+                pickle.dump(self.target_confidences, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 class ImageWriter(object):
