@@ -9,6 +9,35 @@ import torchvision.transforms as transforms
 from PIL import Image
 
 
+class TargetConfidenceLogger:
+    def __init__(self, pickle_dir, write_every=10):
+        self.target_confidences = {}
+        self.pickle_dir = pickle_dir
+        self.write_every = write_every
+
+        target_confidences_pickle_dir = os.path.join(self.pickle_dir, "target_confidences")
+        self.target_confidences_pickle_file = os.path.join(target_confidences_pickle_dir,
+                                                           "{}_target_confidences.pickle".format(self.pickle_prefix))
+
+        # Make images hist pickle path
+        if not os.path.exists(target_confidences_pickle_dir):
+            os.mkdir(target_confidences_pickle_dir)
+
+    def update_target_confidences(self, epoch, confidences, results, num_backpropped):
+        if epoch not in self.target_confidences.keys():
+            self.target_confidences[epoch] = {"confidences": [], "results": []}
+        self.target_confidences[epoch]["confidences"] += confidences
+        self.target_confidences[epoch]["results"] += results
+        self.target_confidences[epoch]["num_backpropped"] = num_backpropped
+        if epoch % self.write_every == 0:
+            self.write_summaries()
+
+    def write_summaries(self):
+        with open(self.target_confidences_pickle_file, "wb") as handle:
+            print(self.target_confidences_pickle_file)
+            pickle.dump(self.target_confidences, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
 class ImageWriter(object):
     def __init__(self, data_dir, dataset, unnormalizer):
         self.data_dir = data_dir

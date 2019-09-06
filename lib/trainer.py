@@ -310,6 +310,7 @@ class KathTrainer(Trainer):
         B = pool_size
         tau_th = float(B + 3*b) / (3*b)
         self.condition = kath_util.VarianceReductionCondition(tau_th)
+        self.satisfied = False
 
         self.pool = []
         self.pool_size = pool_size
@@ -325,7 +326,7 @@ class KathTrainer(Trainer):
         return w_hat[:, np.newaxis]
 
     def train(self, trainloader):
-        if self.condition.satisfied:
+        if self.condition.satisfied or self.satisfied:
             print("Condition satisified")
             for i, batch in enumerate(trainloader):
                 forward_pass_batch = self.forward_pass(*batch)
@@ -336,6 +337,7 @@ class KathTrainer(Trainer):
                     annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
                     self.emit_backward_pass(annotated_backward_batch)
                     self.pool = []
+            self.satisfied = True
         else:
             print("Condition not satisified")
             for i, batch in enumerate(trainloader):
@@ -360,7 +362,7 @@ class KathTrainer(Trainer):
             example.select = False
 
         # Sample batch_size without replacement
-        indices = np.random.choice(range(len(pool)), self.batch_size, replace=False, p=probs)
+        indices = np.random.choice(range(len(pool)), self.batch_size, replace=True, p=probs)
         weights = self.sample_weights(indices, probs)
 
         # Populate batch with sampled_choices
