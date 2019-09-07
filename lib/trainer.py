@@ -1,3 +1,6 @@
+import sys
+import ctypes
+import multiprocessing
 import json
 import numpy as np
 import threading
@@ -5,10 +8,55 @@ import torch
 import torch.nn as nn
 import lib.forwardproppers as forwardproppers
 import lib.sb_util as sb_util
-import lib.kath_util as kath_util
+import lib.ringbuffer as ringbuffer
 import time
 from copy import deepcopy
 from torch.multiprocessing import Process, Queue
+
+# The ring buffer element that's passed between reader and writer
+class Record(ctypes.Structure):
+    _fields_ = [
+        ('length', ctypes.c_uint),
+        ('image_ids', ctypes.c_uint * 512),
+    ]
+
+# Set up ring buffer for async
+
+ring = ringbuffer.RingBuffer(
+    slot_bytes=ctypes.sizeof(Record), slot_count=10000)
+ring.new_writer()
+
+# new_reader must be called before the first write occus
+pointer = ring.new_reader()
+
+
+def selector_process_bear(ring):
+    print("in selector process bare")
+
+def selector_process(forwardpropper, mark_batch_fn, selector_net, trainloader):
+
+    print("[selector] started")
+    forwardpropper.net = selector_net
+
+    for i, batch in enumerate(trainloader):
+        if i == len(trainloader) - 1:
+            final = True
+        else:
+            final = False
+        annotated_forward_batch = mark_batch_fn(batch, final=final)
+        print("[selector] after forward pass")
+        image_ids = [em.example.image_id for em in annotated_forward_batch]
+        record = Record()
+        record.length = len(image_ids)
+        for i in range(len(image_ids)):
+            record.image_ids[i] = image_ids[i]
+
+        try:
+            print("[selector] before try_write")
+            ring.try_write(record)
+        except ringbuffer.WaitingForReaderError:
+            print("Writer: Reader is too slow, dropping at iteration", iters)
+            continue
 
 
 class ExampleAndMetadata(object):
@@ -310,47 +358,45 @@ class AsyncTrainer(MemoizedTrainer):
         self.forwardpropper = forwardproppers.CutoutForwardpropper(self.device2,
                                                                    net,
                                                                    loss_fn)
-        self.shared_imageid_array= Array("i", num_images, lock=True)
-        self.shared_final_array = Array("b", num_images, lock=True)
-        self.head_ptr = Value("i", 0)
 
     def train(self, trainloader):
-        print("Started train for new epoch")
+        print("Started train for new epoch", time.time())
         selector_net = deepcopy(self.net)
+        print("[main] finished copy")
         selector_net.to(self.device2)
-        selector_p = Process(target=self.selector_process, args=(self.queue,
-                                                                 selector_net,
-                                                                 trainloader))
-        #selector_p.daemon = True
-        selector_p.start()
+        print("[main] finished network move", time.time())
+
+        writer_process = multiprocessing.Process(target=selector_process, args=(self.forwardpropper, self.mark_batch, selector_net, trainloader, ))
+        #writer_process = multiprocessing.Process(target=selector_process_bear, args=(ring, ))
+        writer_process.start()
 
         while True:
+            try:
+                # Read a new record and optionally check its contents
+                print("[main] before read")
+                data = ring.blocking_read(pointer)
+                print("[main] after read")
+                record = Record.from_buffer(data)
+                examples = get_examples_from_record(record)
+                self.backprop_queue += examples
+                backprop_batch = self.get_batch(False)
+                if backprop_batch:
+                    annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
+                    self.emit_backward_pass(annotated_backward_batch)
 
-            image_ids = self.shared
-
-            annotated_forward_batch = queue_element.em
-            self.backprop_queue += annotated_forward_batch
-            backprop_batch = self.get_batch(queue_element.final)
-            if backprop_batch:
-                annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
-                self.emit_backward_pass(annotated_backward_batch)
-
-    def selector_process(self, queue, selector_net, trainloader):
-        self.forwardpropper.net = selector_net
-
-        for i, batch in enumerate(trainloader):
-            if self.stopped: break
-            if i == len(trainloader) - 1:
-                final = True
-            else:
-                final = False
-            annotated_forward_batch = self.mark_batch(batch, final=final)
-            queue_element = QueueElement(annotated_forward_batch, final)
-            queue.put(queue_element)
-        queue.put("DONE")
-        print("selector_process completed epoch")
-        time.sleep(30)
-        print("selector_process completed sleep")
+            except ringbuffer.WriterFinishedError:
+                print ("Reader: Writer is finished. Exiting.")
+                data = ring.blocking_read(pointer)
+                record = Record.from_buffer(data)
+                examples = get_examples_from_record(record)
+                self.backprop_queue += examples
+                backprop_batch = self.get_batch(True)
+                if backprop_batch:
+                    annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
+                    self.emit_backward_pass(annotated_backward_batch)
+                return
+            except:
+                print("Unexpected error:", sys.exc-info()[0])
 
     def mark_batch(self, batch, final):
         EMs = self.create_example_batch(*batch)
