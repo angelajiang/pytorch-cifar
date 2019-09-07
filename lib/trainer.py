@@ -1,6 +1,6 @@
 import sys
 import ctypes
-import multiprocessing
+import torch.multiprocessing as mp
 import json
 import numpy as np
 import threading
@@ -13,51 +13,31 @@ import time
 from copy import deepcopy
 from torch.multiprocessing import Process, Queue
 
-# The ring buffer element that's passed between reader and writer
-class Record(ctypes.Structure):
-    _fields_ = [
-        ('length', ctypes.c_uint),
-        ('image_ids', ctypes.c_uint * 512),
-    ]
-
-# Set up ring buffer for async
-
-ring = ringbuffer.RingBuffer(
-    slot_bytes=ctypes.sizeof(Record), slot_count=10000)
-ring.new_writer()
-
-# new_reader must be called before the first write occus
-pointer = ring.new_reader()
+def writer(image_ids, forwardpropper):
+    print("Writer starting")
+    for i in range(0, 1000):
+      image_ids[i] = 1
+    print("Writer done")
 
 
-def selector_process_bear(ring):
-    print("in selector process bare")
-
-def selector_process(forwardpropper, mark_batch_fn, selector_net, trainloader):
-
+def selector_process(image_ids_tensor, forwardpropper, mark_batch_fn, selector_net, trainloader):
     print("[selector] started")
+
     forwardpropper.net = selector_net
 
+    image_id_tensor_index = 0
     for i, batch in enumerate(trainloader):
         if i == len(trainloader) - 1:
             final = True
         else:
             final = False
         annotated_forward_batch = mark_batch_fn(batch, final=final)
-        print("[selector] after forward pass")
-        image_ids = [em.example.image_id for em in annotated_forward_batch]
-        record = Record()
-        record.length = len(image_ids)
-        for i in range(len(image_ids)):
-            record.image_ids[i] = image_ids[i]
-
-        try:
-            print("[selector] before try_write")
-            ring.try_write(record)
-        except ringbuffer.WaitingForReaderError:
-            print("Writer: Reader is too slow, dropping at iteration", iters)
-            continue
-
+        if annotated_forward_batch is not None:
+            image_ids = [em.example.image_id for em in annotated_forward_batch]
+            for image_id in image_ids:
+                image_ids_tensor[image_id_tensor_index] = image_id
+                image_id_tensor_index += 1
+    print("[selector] writer done")
 
 class ExampleAndMetadata(object):
     def __init__(self, example, metadata):
@@ -358,45 +338,47 @@ class AsyncTrainer(MemoizedTrainer):
         self.forwardpropper = forwardproppers.CutoutForwardpropper(self.device2,
                                                                    net,
                                                                    loss_fn)
+        self.first = True
+        self.examples = {}
+
+    def prep_async(self, trainloader):
+        for i, batch in enumerate(trainloader):
+            EMs = self.create_example_batch(*batch)
+            for em in EMs:
+                image_id = em.example.image_id
+                self.examples[image_id] = em
 
     def train(self, trainloader):
-        print("Started train for new epoch", time.time())
-        selector_net = deepcopy(self.net)
-        print("[main] finished copy")
-        selector_net.to(self.device2)
-        print("[main] finished network move", time.time())
 
-        writer_process = multiprocessing.Process(target=selector_process, args=(self.forwardpropper, self.mark_batch, selector_net, trainloader, ))
-        #writer_process = multiprocessing.Process(target=selector_process_bear, args=(ring, ))
+        print("[train] Started train for new epoch")
+        selector_net = deepcopy(self.net)
+        print("[train] finished copy")
+        selector_net.to(self.device2)
+        print("[train] finished network move")
+
+        image_ids_tensor = torch.zeros(50000)
+        image_ids_tensor.share_memory_()
+        image_ids_tensor.fill_(-1)
+
+        writer_process = mp.Process(target=selector_process, args=(image_ids_tensor, self.forwardpropper, self.mark_batch, selector_net, trainloader, ))
         writer_process.start()
 
+        if self.first:
+            self.prep_async(trainloader)
+            self.first = False
+
+        i = 0
         while True:
-            try:
-                # Read a new record and optionally check its contents
-                print("[main] before read")
-                data = ring.blocking_read(pointer)
-                print("[main] after read")
-                record = Record.from_buffer(data)
-                examples = get_examples_from_record(record)
-                self.backprop_queue += examples
+            if image_ids_tensor[i] == -1:
+                a = 1
+            else:
+                self.backprop_queue.append(self.examples[image_ids_tensor[i].item()])
                 backprop_batch = self.get_batch(False)
                 if backprop_batch:
+                    print("[train] starting a backprop")
                     annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
                     self.emit_backward_pass(annotated_backward_batch)
-
-            except ringbuffer.WriterFinishedError:
-                print ("Reader: Writer is finished. Exiting.")
-                data = ring.blocking_read(pointer)
-                record = Record.from_buffer(data)
-                examples = get_examples_from_record(record)
-                self.backprop_queue += examples
-                backprop_batch = self.get_batch(True)
-                if backprop_batch:
-                    annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
-                    self.emit_backward_pass(annotated_backward_batch)
-                return
-            except:
-                print("Unexpected error:", sys.exc-info()[0])
+                i += 1
 
     def mark_batch(self, batch, final):
         EMs = self.create_example_batch(*batch)
@@ -404,10 +386,12 @@ class AsyncTrainer(MemoizedTrainer):
         self.forward_queue += batch_marked_for_fp
         batch_to_fp = self.get_forward_batch(final)
         if batch_to_fp:
+            print("[mark_batch] doing a forward pass")
             forward_pass_batch = self.forwardpropper.forward_pass(batch_to_fp)
             annotated_forward_batch = self.selector.mark(forward_pass_batch)
             self.emit_forward_pass(annotated_forward_batch)
             return annotated_forward_batch
+        return None
 
     def get_forward_batch(self, final):
         num_images_to_fp = 0
