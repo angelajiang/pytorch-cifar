@@ -2,6 +2,11 @@
 import torch
 import torch.nn as nn
 
+import datetime
+def get_epochtime_ms():
+    return int((datetime.datetime.utcnow() - datetime.datetime(1970, 1, 1)).total_seconds() * 1000) 
+
+
 class CutoutForwardpropper(object):
 
     def __init__(self, device, net, loss_fn):
@@ -37,9 +42,12 @@ class CutoutForwardpropper(object):
 
             # Run forward pass
             # Necessary if the network has been updated between last forward pass
+            print("[python] ===forward-sb: {}".format(get_epochtime_ms()))
             self.net.eval()
             with torch.no_grad():
                 outputs = self.net(data)
+            torch.cuda.synchronize()
+            print("[python] forward-sb===: {}".format(get_epochtime_ms()))
 
             losses = self.loss_fn(reduce=False)(outputs, targets)
             softmax_outputs = nn.Softmax()(outputs)
@@ -101,9 +109,11 @@ class BaselineForwardpropper(object):
 
         # Run forward pass
         # Necessary if the network has been updated between last forward pass
+        print("[python] ===forward:")
         self.net.eval()
         with torch.no_grad():
             outputs = self.net(data)
+        print("[python] forward===:")
 
         losses = self.loss_fn(reduce=False)(outputs, targets)
         softmax_outputs = nn.Softmax()(outputs)

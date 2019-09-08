@@ -8,6 +8,11 @@ import torch
 import torch.nn as nn
 import trainer as trainer
 
+import datetime
+def get_epochtime_ms():
+    return int((datetime.datetime.utcnow() - datetime.datetime(1970, 1, 1)).total_seconds() * 1000) 
+
+
 start_time_seconds = time.time()
 
 class SelectiveBackpropper:

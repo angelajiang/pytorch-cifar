@@ -2,6 +2,11 @@ import torch
 import time
 import torch.nn as nn
 
+import datetime
+def get_epochtime_ms():
+    return int((datetime.datetime.utcnow() - datetime.datetime(1970, 1, 1)).total_seconds() * 1000) 
+
+
 class PrimedBackpropper(object):
     def __init__(self, initial, final, initial_num_images):
         self.initial = initial
@@ -50,7 +55,10 @@ class SamplingBackpropper(object):
         targets = self._get_chosen_targets_tensor(chosen_batch).to(self.device)
 
         # Run forward pass
+        print("[python] ===forward: {}".format(get_epochtime_ms()))
         outputs = self.net(data) 
+        torch.cuda.synchronize()
+        print("[python] forward===: {}".format(get_epochtime_ms()))
         losses = self.loss_fn(reduce=False)(outputs, targets)
         softmax_outputs = nn.Softmax()(outputs)             # OPT: not necessary when logging is off
         _, predicted = outputs.max(1)
@@ -64,7 +72,10 @@ class SamplingBackpropper(object):
 
         # Run backwards pass
         self.optimizer.zero_grad()
+        print("[python] ===backward: {}".format(get_epochtime_ms()))
         loss.backward()
+        torch.cuda.synchronize()
+        print("[python] backward===: {}".format(get_epochtime_ms()))
         self.optimizer.step()
 
         # Add for logging selected loss

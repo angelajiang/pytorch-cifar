@@ -6,6 +6,10 @@ import forwardproppers
 import sb_util
 import kath_util
 
+import datetime
+def get_epochtime_ms():
+    return int((datetime.datetime.utcnow() - datetime.datetime(1970, 1, 1)).total_seconds() * 1000) 
+
 
 class ExampleAndMetadata(object):
     def __init__(self, example, metadata):
@@ -152,11 +156,13 @@ class Trainer(object):
 
     def train(self, trainloader):
         for i, batch in enumerate(trainloader):
+            print("[python] ===epoch: {}".format(get_epochtime_ms()))
             if self.stopped: break
             if i == len(trainloader) - 1:
                 self.train_batch(batch, final=True)
             else:
                 self.train_batch(batch, final=False)
+            print("[python] epoch===: {}".format(get_epochtime_ms()))
 
     def train_batch(self, batch, final):
         pass
