@@ -37,14 +37,10 @@ class PrimedSelector(object):
 
 
 class AlwaysOnSelector():
-    def select(self, probability):
-        draw = np.random.uniform(0, 1)
-        return draw < probability
-
     def mark(self, examples):
         for example in examples:
             example.forward_select_probability = 1.
-            example.forward_select = self.select(example.forward_select_probability)
+            example.forward_select = True
         return examples
 
 class StaleSelector():
@@ -54,12 +50,12 @@ class StaleSelector():
         print("StaleSelector_{}".format(self.threshold))
 
     def select(self, example):
-        if self.logger['counter'] % 10000 == 0:
+        if self.logger['counter'] % 50000 == 0:
             print(self.logger)
         self.logger['counter'] += 1
 
         example.epochs_since_update += 1
-        if example.epochs_since_update >= self.threshold:
+        if not hasattr(example, 'loss') or example.epochs_since_update >= self.threshold:
             self.logger['forward'] += 1
             return True
         else:

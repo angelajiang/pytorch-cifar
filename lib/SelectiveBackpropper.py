@@ -22,7 +22,8 @@ class SelectiveBackpropper:
                  num_training_images,
                  forwardlr,
                  strategy,
-                 calculator="relative"):
+                 calculator="relative",
+                 fp_selector_type="alwayson"):
 
         ## Hardcoded params
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -31,7 +32,6 @@ class SelectiveBackpropper:
         num_images_to_prime = self.num_training_images
         #num_images_to_prime = 0
 
-        fp_selector_type = "stale"
         log_interval = 1
         sampling_max = 1
         max_history_len = 1024
@@ -47,6 +47,7 @@ class SelectiveBackpropper:
         kath_oversampling_rate = 4
 
         self.selector = None
+        self.fp_selector = None
         if strategy == "kath":
             print("Make sure that kath strategy is consistent.")
             exit()
@@ -121,7 +122,6 @@ class SelectiveBackpropper:
 
         self.trainer.on_backward_pass(self.logger.handle_backward_batch)
         self.trainer.on_forward_pass(self.logger.handle_forward_batch)
-        self.trainer.on_forward_mark(self.logger.handle_forward_mark)
 
     def next_epoch(self):
         self.logger.next_epoch()
