@@ -44,13 +44,11 @@ class SelectiveBackpropper:
         start_epoch = 0
         start_num_backpropped = 0
         start_num_skipped = 0
-        kath_oversampling_rate = 4
+        kath_oversampling_rate = 3
 
         self.selector = None
         self.fp_selector = None
         if strategy == "kath":
-            print("Make sure that kath strategy is consistent.")
-            exit()
             self.selector = None
             final_backpropper = backproppers.SamplingBackpropper(device,
                                                                  model,
@@ -68,7 +66,7 @@ class SelectiveBackpropper:
                                                batch_size,
                                                batch_size * kath_oversampling_rate,
                                                loss_fn,
-                                               lr_sched,
+                                               lr_schedule=lr_sched,
                                                forwardlr=forwardlr)
         elif strategy == "nofilter":
             self.backpropper = backproppers.SamplingBackpropper(device,

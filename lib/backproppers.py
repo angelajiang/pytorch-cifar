@@ -32,14 +32,14 @@ class SamplingBackpropper(object):
         self.loss_fn = loss_fn
 
     def _get_chosen_examples(self, batch):
-        return [example for example in batch if example.select]
+        return [em for em in batch if em.example.select]
 
     def _get_chosen_data_tensor(self, batch):
-        chosen_data = [example.datum for example in batch]
+        chosen_data = [em.example.datum for em in batch]
         return torch.stack(chosen_data)
 
     def _get_chosen_targets_tensor(self, batch):
-        chosen_targets = [example.target for example in batch]
+        chosen_targets = [em.example.target for em in batch]
         return torch.stack(chosen_targets)
 
     def backward_pass(self, batch):
@@ -68,10 +68,23 @@ class SamplingBackpropper(object):
         self.optimizer.step()
 
         # Add for logging selected loss
-        for example, loss, is_correct in zip(chosen_batch,
-                                             losses,
-                                             is_corrects):
-            example.loss = loss.item()
-            example.correct = is_correct.item()
+        for em, loss, is_correct in zip(chosen_batch,
+                                        losses,
+                                        is_corrects):
+            em.example.loss = loss.item()
+            em.example.correct = is_correct.item()
+            em.metadata["loss"] = em.example.loss
 
         return batch
+
+class AlwaysOnBackpropper(object):
+
+    def __init__(self, device, net, optimizer, loss_fn):
+        super(SamplingBackpropper, self).__init__(device,
+                                                  net,
+                                                  optimizer,
+                                                  loss_fn)
+
+    def _get_chosen_examples(self, batch):
+        return batch
+

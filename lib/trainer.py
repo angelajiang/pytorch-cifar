@@ -4,7 +4,13 @@ import torch
 import torch.nn as nn
 import forwardproppers
 import sb_util
+import kath_util
 
+
+class ExampleAndMetadata(object):
+    def __init__(self, example, metadata):
+        self.example = example
+        self.metadata = metadata
 
 class Example(object):
     # TODO: Add ExampleCollection class
@@ -22,6 +28,7 @@ class Example(object):
             self.output = output.detach().cpu()
         if softmax_output is not None:
             self.softmax_output = softmax_output.detach().cpu()
+        self.forward_select = True
         self.target = target.detach().cpu()
         self.datum = datum.detach().cpu()
         self.image_id = image_id
@@ -75,19 +82,25 @@ class Trainer(object):
         self.backward_pass_handlers = []
         self.global_num_backpropped = 0
         self.global_num_forwards = 0
+        self.global_num_analyzed = 0
         self.forwardlr = forwardlr
         self.max_num_backprops = max_num_backprops
         self.on_backward_pass(self.update_num_backpropped)
         self.on_forward_pass(self.update_num_forwards)
+        self.on_forward_pass(self.update_num_analyzed)
+        self.example_metadata = {}
         if lr_schedule:
             self.load_lr_schedule(lr_schedule)
             self.on_backward_pass(self.update_learning_rate)
 
     def update_num_backpropped(self, batch):
-        self.global_num_backpropped += sum([1 for e in batch if e.select])
+        self.global_num_backpropped += sum([1 for em in batch if em.example.select])
 
     def update_num_forwards(self, batch):
-        self.global_num_forwards += len(batch)
+        self.global_num_forwards += sum([1 for em in batch if em.example.forward_select])
+
+    def update_num_analyzed(self, batch):
+        self.global_num_analyzed += len(batch)
 
     def on_forward_pass(self, handler):
         self.forward_pass_handlers.append(handler)
@@ -120,7 +133,7 @@ class Trainer(object):
     @property
     def counter(self):
         if self.forwardlr:
-            counter = self.global_num_forwards
+            counter = self.global_num_analyzed
         else:
             counter = self.global_num_backpropped
         return counter
@@ -146,33 +159,15 @@ class Trainer(object):
                 self.train_batch(batch, final=False)
 
     def train_batch(self, batch, final):
-        forward_pass_batch = self.forward_pass(*batch)
-        annotated_forward_batch = self.selector.mark(forward_pass_batch)
-        self.emit_forward_pass(annotated_forward_batch)
-        self.backprop_queue += annotated_forward_batch
-        backprop_batch = self.get_batch(final)
-        if backprop_batch:
-            annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
-            self.emit_backward_pass(annotated_backward_batch)
+        pass
 
     def forward_pass(self, data, targets, image_ids):
-        data, targets = data.to(self.device), targets.to(self.device)
-
-        self.net.eval()
-        with torch.no_grad():
-            outputs = self.net(data)
-
-        losses = self.loss_fn(reduce=False)(outputs, targets)
-        softmax_outputs = nn.Softmax()(outputs)
-
-        examples = zip(losses, outputs, softmax_outputs, targets, data, image_ids)
-        return [Example(*example) for example in examples]
+        pass
 
     def get_batch(self, final):
-
         num_images_to_backprop = 0
-        for index, example in enumerate(self.backprop_queue):
-            num_images_to_backprop += int(example.select)
+        for index, em in enumerate(self.backprop_queue):
+            num_images_to_backprop += int(em.example.select)
             if num_images_to_backprop == self.batch_size:
                 # Note: includes item that should and shouldn't be backpropped
                 backprop_batch = self.backprop_queue[:index+1]
@@ -180,13 +175,24 @@ class Trainer(object):
                 return backprop_batch
         if final:
             def get_num_to_backprop(batch):
-                return sum([1 for example in batch if example.select])
+                return sum([1 for em in batch if em.example.select])
             backprop_batch = self.backprop_queue
             self.backprop_queue = []
             if get_num_to_backprop(backprop_batch) == 0:
                 return None
             return backprop_batch
         return None
+
+    def create_example_batch(self, data, targets, image_ids):
+        batch = []
+        for target, datum, image_id in zip(targets, data, image_ids):
+            image_id = image_id.item()
+            if image_id not in self.example_metadata:
+                self.example_metadata[image_id] = {"epochs_since_update": 0}
+            example = Example(target=target, datum=datum, image_id=image_id, select_probability=1)
+            example.select = True
+            batch.append(ExampleAndMetadata(example, self.example_metadata[image_id]))
+        return batch
 
 class MemoizedTrainer(Trainer):
     def __init__(self,
@@ -217,28 +223,10 @@ class MemoizedTrainer(Trainer):
         self.forwardpropper = forwardproppers.CutoutForwardpropper(device,
                                                                    net,
                                                                    loss_fn)
-        self.examples = {}
-
-    def create_example_batch(self, data, targets, image_ids):
-        #data, targets = data.to(self.device), targets.to(self.device)
-        batch = []
-        for target, datum, image_id in zip(targets, data, image_ids):
-            image_id = image_id.item()
-            if image_id not in self.examples:
-                example = Example(target=target, datum=datum, image_id=image_id, select_probability=1)
-                example.epochs_since_update = 0
-                example.select = True
-                self.examples[image_id] = example
-            else:
-                example = self.examples[image_id]
-                example.datum = datum.detach().cpu()
-            batch.append(example)
-            
-        return batch
 
     def train_batch(self, batch, final):
-        examples = self.create_example_batch(*batch)
-        batch_marked_for_fp = self.fp_selector.mark(examples)
+        EMs = self.create_example_batch(*batch)
+        batch_marked_for_fp = self.fp_selector.mark(EMs)
         self.forward_queue += batch_marked_for_fp
         batch_to_fp = self.get_forward_batch(final)
         if batch_to_fp:
@@ -254,20 +242,16 @@ class MemoizedTrainer(Trainer):
     def get_forward_batch(self, final):
         num_images_to_fp = 0
         max_queue_size = self.forward_batch_size * 4
-        for index, example in enumerate(self.forward_queue):
-            num_images_to_fp += int(example.forward_select)
+        for index, em in enumerate(self.forward_queue):
+            num_images_to_fp += int(em.example.forward_select)
             if num_images_to_fp == self.forward_batch_size:
                 # Note: includes item that should and shouldn't be forward propped
                 forward_batch = self.forward_queue[:index+1]
                 self.forward_queue = self.forward_queue[index+1:]
                 return forward_batch
         if final or len(self.forward_queue) > max_queue_size:
-            def get_num_to_forward(batch):
-                return sum([1 for example in batch if example.forward_select])
             forward_batch = self.forward_queue
             self.forward_queue = []
-            #if get_num_to_forward(forward_batch) == 0:
-            #    return None
             return forward_batch
         return None
 
@@ -292,9 +276,6 @@ class NoFilterTrainer(Trainer):
                                 lr_schedule,
                                 forwardlr)
 
-        self.on_backward_pass(self.update_num_forwards)
-        self.examples = {}
-
     def train_batch(self, batch, final):
         annotated_forward_batch = self.create_example_batch(*batch)
         self.backprop_queue += annotated_forward_batch
@@ -303,122 +284,6 @@ class NoFilterTrainer(Trainer):
             annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
             self.emit_backward_pass(annotated_backward_batch)
             self.emit_forward_pass(annotated_backward_batch)
-
-    def create_example_batch(self, data, targets, image_ids):
-        batch = []
-        for target, datum, image_id in zip(targets, data, image_ids):
-            image_id = image_id.item()
-            if image_id not in self.examples:
-                example = Example(target=target, datum=datum, image_id=image_id, select_probability=1)
-                example.select = True
-                example.forward_select = True
-                self.examples[image_id] = example
-            else:
-                example = self.examples[image_id]
-                example.datum = datum.detach().cpu()
-            batch.append(example)
-            
-        return batch
-
-'''
-class MemoizedTrainer(Trainer):
-    def __init__(self,
-                 device,
-                 net,
-                 dataset,
-                 bp_selector,
-                 backpropper,
-                 bp_batch_size,
-                 fp_selector,
-                 forwardpropper,
-                 forward_batch_size,
-                 loss_fn,
-                 max_num_backprops=float('inf'),
-                 lr_schedule=None,
-                 forwardlr=False):
-
-        super(MemoizedTrainer, self).__init__(device,
-                                net,
-                                dataset,
-                                bp_selector,
-                                backpropper,
-                                bp_batch_size,
-                                loss_fn,
-                                max_num_backprops,
-                                lr_schedule,
-                                forwardlr)
-
-        self.forward_queue = []
-        self.forwardpropper = forwardpropper
-        self.forward_batch_size = forward_batch_size
-        self.fp_selector = fp_selector
-        self.forward_mark_handlers = []
-
-    def on_forward_mark(self, handler):
-        self.forward_mark_handlers.append(handler)
-
-    def emit_forward_mark(self, batch):
-        for handler in self.forward_mark_handlers:
-            handler(batch)
-
-    def count_allocated_tensors(self):
-        import gc
-        count = 0
-        for obj in gc.get_objects():
-            try:
-                if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
-                    #print(type(obj), obj.size())
-                    count += 1
-            except:
-                pass 
-        return count
-
-    def train_batch(self, candidate_forward_batch, final):
-        # Transform candidate forward_batch into examples
-        candidate_forward_batch_examples = []
-        for datum, image_id in zip(candidate_forward_batch[0], candidate_forward_batch[2]):
-            e = self.dataset.examples[image_id.item()]
-            e.datum = datum             # OPT: image copy?
-            candidate_forward_batch_examples.append(e)
-
-        batch_marked_for_fp = self.fp_selector.mark(candidate_forward_batch_examples) # OPT: in place?
-        self.emit_forward_mark(batch_marked_for_fp)
-        self.forward_queue += batch_marked_for_fp
-        batch_to_fp = self.get_forward_batch(final)
-        if batch_to_fp:
-            candidate_backward_batch = self.forward_pass(batch_to_fp)
-            self.emit_forward_pass(candidate_backward_batch)
-
-            batch_marked_for_bp = self.selector.mark(candidate_backward_batch) # OPT: in place?
-            #print([a.get_select(False) for a in batch_marked_for_bp])
-            self.backprop_queue += batch_marked_for_bp
-            batch_to_bp = self.get_batch(final)
-            if batch_to_bp:
-                annotated_backward_batch = self.backpropper.backward_pass(batch_to_bp)
-                self.emit_backward_pass(annotated_backward_batch)
-
-    def forward_pass(self, batch_to_fp):
-
-    def get_forward_batch(self, final):
-        num_images_to_fp = 0
-        for index, example in enumerate(self.forward_queue):
-            num_images_to_fp += int(example.get_select(True))
-            if num_images_to_fp == self.forward_batch_size:
-                # Note: includes item that should and shouldn't be forward propped
-                forward_batch = self.forward_queue[:index+1]
-                self.forward_queue = self.forward_queue[index+1:]
-                return forward_batch
-        if final:
-            def get_num_to_forward(batch):
-                return sum([1 for example in batch if example.get_select(True)])
-            forward_batch = self.forward_queue
-            self.forward_queue = []
-            if get_num_to_forward(forward_batch) == 0:
-                return None
-            return forward_batch
-        return None
-'''
-
 
 class KathTrainer(Trainer):
     def __init__(self,
@@ -440,41 +305,78 @@ class KathTrainer(Trainer):
                                           max_num_backprops,
                                           lr_schedule,
                                           forwardlr)
+
+        b = batch_size
+        B = pool_size
+        tau_th = float(B + 3*b) / (3*b)
+        self.condition = kath_util.VarianceReductionCondition(tau_th)
+
         self.pool = []
         self.pool_size = pool_size
+        self.epoch_count = 0
 
     def train(self, trainloader):
-        for i, batch in enumerate(trainloader):
-            forward_pass_batch = self.forward_pass(*batch)
-            self.emit_forward_pass(forward_pass_batch)
-            self.pool += forward_pass_batch
-            if len(self.pool) >= self.pool_size:
-                self.train_pool(self.pool)
-                self.pool = []
+        self.epoch_count += 1
+        if self.condition.satisfied:
+            print("Condition satisfied at epoch {}".format(self.epoch_count))
+            for i, batch in enumerate(trainloader):
+                forward_pass_batch = self.forward_pass(*batch)
+                self.emit_forward_pass(forward_pass_batch)
+                self.pool += forward_pass_batch
+                if len(self.pool) >= self.pool_size:
+                    self.train_pool(self.pool)
+                    self.pool = []
+        else:
+            print("Condition not satisfied at epoch {}".format(self.epoch_count))
+            for i, batch in enumerate(trainloader):
+                forward_pass_batch = self.forward_pass(*batch)
+                self.emit_forward_pass(forward_pass_batch)
+                self.pool += forward_pass_batch
+                if len(self.pool) >= self.batch_size:
+                    self.train_all(self.pool)
+                    self.pool = []
+                self.first = False
 
-    def train_pool(self, pool):
-        backprop_batch = self.get_batch(pool)
-        annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
-        self.emit_backward_pass(annotated_backward_batch)
+    def get_probabilities_float(self, pool):
+        loss_sum = sum([example.loss for example in pool])
+        probs = [example.loss / loss_sum for example in pool]
+        return probs
 
     def get_probabilities(self, pool):
         loss_sum = sum([example.loss.item() for example in pool])
         probs = [example.loss.item() / loss_sum for example in pool]
         return probs
 
-    def get_batch(self, pool):
+    def train_all(self, pool):
+        for em in pool:
+            em.example.select = True
+        annotated_backward_batch = self.backpropper.backward_pass(pool)
+        self.emit_backward_pass(annotated_backward_batch)
+
+        probs = self.get_probabilities_float([em.example for em in pool])
+        self.condition.update(probs)
+
+    def train_pool(self, pool):
+        backprop_batch = self.get_batch(pool)
+        annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
+        self.emit_backward_pass(annotated_backward_batch)
+
+    def get_batch(self, examples_and_metadata):
+        pool = [em.example for em in examples_and_metadata]
         probs = self.get_probabilities(pool)
+        self.condition.update(probs)
         for example, prob in zip(pool, probs):
             example.select_probability = prob
+            example.select = False
 
         # Sample batch_size with replacement
-        chosen_examples = np.random.choice(pool, self.batch_size, replace=False, p=probs)
+        chosen_examples = np.random.choice(pool, self.batch_size, replace=True, p=probs)
 
         # Populate batch with sampled_choices
         for example in chosen_examples:
             example.select = True
 
-        return chosen_examples
+        return examples_and_metadata
 
     def forward_pass(self, data, targets, image_ids):
         data, targets = data.to(self.device), targets.to(self.device)
@@ -487,7 +389,8 @@ class KathTrainer(Trainer):
         softmax_outputs = nn.Softmax()(outputs)
 
         examples = zip(losses, outputs, softmax_outputs, targets, data, image_ids)
-        return [Example(*example) for example in examples]
+        return [ExampleAndMetadata(Example(*example), {}) for example in examples]
+
 
 class KathBaselineTrainer(KathTrainer):
     def __init__(self,

@@ -10,17 +10,17 @@ class CutoutForwardpropper(object):
         self.loss_fn = loss_fn
 
     def _get_chosen_examples(self, batch):
-        return [example for example in batch if example.forward_select]
+        return [em for em in batch if em.example.forward_select]
 
     def _get_chosen_image_ids(self, examples):
-        return [example.image_id for example in examples]
+        return [em.example.image_id for em in examples]
 
     def _get_chosen_data_tensor(self, examples):
-        chosen_data = [example.datum for example in examples]
+        chosen_data = [em.example.datum for em in examples]
         return torch.stack(chosen_data)
 
     def _get_chosen_targets_tensor(self, examples):
-        chosen_targets = [example.target for example in examples]
+        chosen_targets = [em.example.target for em in examples]
         return torch.stack(chosen_targets)
 
     def forward_pass(self, batch):
@@ -47,13 +47,14 @@ class CutoutForwardpropper(object):
             _, predicted = outputs.max(1)
             is_corrects = predicted.eq(targets)
 
-            for e, loss, is_correct in zip(selected_examples,
-                                           losses,
-                                           is_corrects):
+            for em, loss, is_correct in zip(selected_examples,
+                                            losses,
+                                            is_corrects):
 
-                e.loss = loss.item()
-                e.correct = is_correct.item()
-                e.epochs_since_update = 0
+                em.example.loss = loss.item()
+                em.example.correct = is_correct.item()
+                em.metadata["epochs_since_update"] = 0
+                em.metadata["loss"] = em.example.loss
 
         return batch
 

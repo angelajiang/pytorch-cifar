@@ -12,8 +12,6 @@ def get_selector(selector_type, probability_calculator, num_images_to_prime, sam
         final_selector = SamplingSelector(probability_calculator)
     elif selector_type == "alwayson":
         final_selector = AlwaysOnSelector(probability_calculator)
-    elif selector_type == "deterministic":
-        final_selector = DeterministicSamplingSelector(probability_calculator)
     elif selector_type == "baseline":
         final_selector = BaselineSelector()
     elif selector_type == "topk":
@@ -65,15 +63,15 @@ class TopKSelector(object):
         return draw < select_probability.item()
 
     def mark(self, forward_pass_batch):
-        for example in forward_pass_batch:
-            example.select_probability = self.get_select_probability(example)
-        sps = [example.select_probability for example in forward_pass_batch]
+        for em in forward_pass_batch:
+            em.example.select_probability = self.get_select_probability(em.example)
+        sps = [em.example.select_probability for em in forward_pass_batch]
         indices = np.array(sps).argsort()[-self.sample_size:]
         for i in range(len(forward_pass_batch)):
             if i in indices:
-                forward_pass_batch[i].select = True
+                forward_pass_batch[i].example.select = True
             else:
-                forward_pass_batch[i].select = False
+                forward_pass_batch[i].example.select = False
         return forward_pass_batch
 
 
@@ -110,11 +108,10 @@ class SamplingSelector(object):
 
     def mark(self, forward_pass_batch):
         probs = self.get_select_probability(forward_pass_batch)
-        for example, prob in zip(forward_pass_batch, probs):
-            example.select_probability = prob
-            example.select = self.select(example)
+        for em, prob in zip(forward_pass_batch, probs):
+            em.example.select_probability = prob
+            em.example.select = self.select(em.example)
         return forward_pass_batch
-
 
 class AlwaysOnSelector(SamplingSelector):
     def __init__(self, probability_calculator):
@@ -123,51 +120,15 @@ class AlwaysOnSelector(SamplingSelector):
     def select(self, example):
         return True
 
-
-class DeterministicSamplingSelector(object):
-    def __init__(self, probability_calculator, forwards=False, initial_sum=1):
-        self.forwards = forwards
-        self.global_select_sums = {}
-        self.image_ids = set()
-        self.get_select_probability = probability_calculator.get_probability
-        self.initial_sum = initial_sum
-
-    def increase_select_sum(self, example):
-        select_probability = example.select_probability
-        image_id = example.image_id.item()
-        if image_id not in self.image_ids:
-            self.image_ids.add(image_id)
-            self.global_select_sums[image_id] = self.initial_sum
-        self.global_select_sums[image_id] += select_probability
-
-    def decrease_select_sum(self, example):
-        image_id = example.image_id.item()
-        self.global_select_sums[image_id] -= 1
-        assert(self.global_select_sums[image_id] >= 0)
-
-    def select(self, example):
-        image_id = example.image_id.item()
-        return self.global_select_sums[image_id] >= 1
-
-    def mark(self, forward_pass_batch):
-        for example in forward_pass_batch:
-            sp_tensor = self.get_select_probability(example)
-            example.select_probability = sp_tensor.item()
-            self.increase_select_sum(example)
-            example.select = self.select(example)
-            if example.select:
-                self.decrease_select_sum(example)
-        return forward_pass_batch
-
 class BaselineSelector(object):
 
     def select(self, example):
         return True
 
     def mark(self, forward_pass_batch):
-        for example in forward_pass_batch:
-            example.select_probability = torch.tensor([[1]]).item()
-            example.select = self.select(example)
+        for em in forward_pass_batch:
+            em.example.select_probability = torch.tensor([[1]]).item()
+            em.example.select = self.select(em.example)
         return forward_pass_batch
 
 

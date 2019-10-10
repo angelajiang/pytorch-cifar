@@ -101,11 +101,11 @@ class ProbabilityByImageLogger(object):
             self.losses[image_id].append(loss)
 
     def handle_backward_batch(self, batch):
-        ids = [example.image_id for example in batch]
-        probabilities = [example.get_sp(False) for example in batch]
-        backward_selects = [example.get_select(False) for example in batch]
-        forward_selects = [example.get_select(True) for example in batch]
-        losses = [example.loss for example in batch]
+        ids = [em.example.image_id for em in batch]
+        probabilities = [em.example.get_sp(False) for em in batch]
+        backward_selects = [em.example.get_select(False) for em in batch]
+        forward_selects = [em.example.get_select(True) for em in batch]
+        losses = [em.example.loss for em in batch]
         self.update_data(ids, probabilities, backward_selects, forward_selects, losses)
 
     def write(self):
@@ -152,7 +152,7 @@ class ImageIdHistLogger(object):
             self.data[chosen_id] += 1
 
     def handle_backward_batch(self, batch):
-        ids = [example.image_id.item() for example in batch if example.select]
+        ids = [em.example.image_id.item() for em in batch if em.example.select]
         self.update_data(ids)
 
     def write(self):
@@ -197,7 +197,7 @@ class LossesByEpochLogger(object):
         self.data += losses
 
     def handle_backward_batch(self, batch):
-        losses = [example.loss.item() for example in batch]
+        losses = [em.example.loss.item() for em in batch]
         self.update_data(losses)
 
     def write(self):
@@ -239,8 +239,8 @@ class LossesByImageLogger(object):
             self.data[image_id].append(loss)
 
     def handle_backward_batch(self, batch):
-        ids = [example.image_id for example in batch]
-        losses = [example.loss for example in batch]
+        ids = [em.example.image_id for em in batch]
+        losses = [em.example.loss for em in batch]
         self.update_data(ids, losses)
 
     def write(self):
@@ -280,8 +280,8 @@ class VariancesByImageLogger(object):
             self.data[image_id].append(loss)
 
     def handle_backward_batch(self, batch):
-        ids = [example.image_id for example in batch]
-        losses = [example.loss for example in batch]
+        ids = [em.example.image_id for em in batch]
+        losses = [em.example.loss for em in batch]
         self.update_data(ids, losses)
 
     def write(self):
@@ -320,7 +320,7 @@ class VariancesByEpochLogger(object):
         self.data += [variance]
 
     def handle_backward_batch(self, batch):
-        losses = [example.loss.item() for example in batch]
+        losses = [em.example.loss.item() for em in batch]
         variance = np.var(losses)
         self.update_data(variance)
 
@@ -364,9 +364,9 @@ class VariancesByAverageProbabilityByImageLogger(object):
             self.data["probabilities"][image_id].append(prob)
 
     def handle_backward_batch(self, batch):
-        ids = [example.image_id for example in batch]
-        losses = [example.loss for example in batch]
-        probabilities = [example.select_probability for example in batch]
+        ids = [em.example.image_id for em in batch]
+        losses = [em.example.loss for em in batch]
+        probabilities = [em.example.select_probability for em in batch]
         self.update_data(ids, probabilities, losses)
 
     def write(self):
@@ -445,27 +445,27 @@ class Logger(object):
 
     def handle_forward_batch(self, batch):
         # Populate batch_stats
-        # self.partition_loss += sum([example.loss for example in batch])
-        num_skipped_fp = sum([int(not example.forward_select) for example in batch])
+        # self.partition_loss += sum([example.loss for em in batch])
+        num_skipped_fp = sum([int(not em.example.forward_select) for em in batch])
         self.global_num_skipped_fp += num_skipped_fp
-        self.global_num_forwards += sum([int(example.forward_select) for example in batch])
+        self.global_num_forwards += sum([int(em.example.forward_select) for em in batch])
 
     def handle_backward_batch(self, batch):
 
         self.current_batch += 1
 
-        num_backpropped = sum([int(example.select) for example in batch])
-        num_skipped = sum([int(not example.select) for example in batch])
+        num_backpropped = sum([int(em.example.select) for em in batch])
+        num_skipped = sum([int(not em.example.select) for em in batch])
         self.global_num_backpropped += num_backpropped
         self.global_num_skipped += num_skipped
 
         if self.debug:
             self.partition_num_backpropped += num_backpropped
             self.partition_num_skipped += num_skipped
-            self.partition_backpropped_loss += sum([example.backpropped_loss
-                                                    for example in batch
-                                                    if example.backpropped_loss])
-            self.partition_num_correct += sum([int(example.correct) for example in batch])
+            self.partition_backpropped_loss += sum([em.example.backpropped_loss
+                                                    for em in batch
+                                                    if em.example.backpropped_loss])
+            self.partition_num_correct += sum([int(example.correct) for em in batch])
 
             self.write()
 
