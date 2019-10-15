@@ -33,32 +33,35 @@ def get_probability_calculator(calculator_type,
         probability_calculator = BatchedAlwaysOnProbabilityCalculator()
     elif calculator_type == "relative":
         probability_calculator = BatchedRelativeProbabilityCalculator(device,
-                                                               prob_loss_fn,
-                                                               sampling_min,
-                                                               max_history_len,
-                                                               prob_pow)
-    elif calculator_type == "hybrid":
-        probability_calculator = HybridProbabilityCalculator(device,
-                                                             prob_loss_fn,
-                                                             sampling_min,
-                                                             max_history_len,
-                                                             prob_pow,
-                                                             num_classes)
-    elif calculator_type == "proportional":
-        probability_calculator = ProportionalProbabiltyCalculator(sampling_min,
-                                                                  sampling_max,
-                                                                  num_classes,
-                                                                  device,
-                                                                  prob_transform=prob_transform)
+                                                                      sampling_min,
+                                                                      max_history_len,
+                                                                      prob_pow)
+    elif calculator_type == "random":
+        probability_calculator = BatchedRandomProbabilityCalculator(device,
+                                                                    sampling_min,
+                                                                    prob_pow)
     else:
-        print("Use prob-strategy in {vanilla, relative, hybrid, pscale, proportional}")
+        print("Use prob-strategy in {vanilla,alwayson,relative,random}")
         exit()
     return probability_calculator
 
-class BatchedRelativeProbabilityCalculator(object):
-    def __init__(self, device, loss_fn, sampling_min, history_length, beta):
+class BatchedRandomProbabilityCalculator(object):
+    def __init__(self, device, sampling_min, beta):
         self.device = device
-        self.loss_fn = loss_fn
+        self.sampling_min = sampling_min
+        self.beta = beta
+
+    def calculate_probability(self,):
+        random_percentile = np.random.uniform(0, 1)
+        return math.pow(random_percentile, self.beta)
+
+    def get_probability(self, examples_and_metadata):
+        probs = [max(self.sampling_min, self.calculate_probability()) for i in range(len(examples_and_metadata))]
+        return probs
+
+class BatchedRelativeProbabilityCalculator(object):
+    def __init__(self, device, sampling_min, history_length, beta):
+        self.device = device
         self.historical_losses = lib.hist.UnboundedHistogram(history_length) #collections.deque(maxlen=history_length)
         self.sampling_min = sampling_min
         self.beta = beta
@@ -71,59 +74,11 @@ class BatchedRelativeProbabilityCalculator(object):
         percentile = self.historical_losses.percentile_of_score(loss)
         return math.pow(percentile / 100., self.beta)
 
-    def get_probability(self, examples):
-        outputs = torch.stack([example.output for example in examples])
-        targets = torch.stack([example.target for example in examples])
-        losses = self.loss_fn(reduce=False)(outputs, targets).cpu().data.numpy()
+    def get_probability(self, examples_and_metadata):
+        losses = [em.example.loss for em in examples_and_metadata]
         self.update_history(losses)
         probs = [max(self.sampling_min, self.calculate_probability(loss)) for loss in losses]
         return probs
-
-class RelativeProbabilityCalculator(object):
-    def __init__(self, device, loss_fn, sampling_min, history_length, beta):
-        self.device = device
-        self.loss_fn = loss_fn
-        self.historical_losses = collections.deque(maxlen=history_length)
-        self.sampling_min = sampling_min
-        self.beta = beta
-
-    def update_history(self, loss):
-        self.historical_losses.append(loss)
-
-    def calculate_probability(self, percentile):
-        return math.pow(percentile / 100., self.beta)
-
-    def get_probability(self, example):
-        loss = self.loss_fn()(example.output.unsqueeze(0), example.target.unsqueeze(0))
-        loss = loss.cpu().data.numpy()
-        self.update_history(loss)
-        prob = self.calculate_probability(stats.percentileofscore(self.historical_losses, loss, kind="rank"))
-        return max(self.sampling_min, prob)
-
-class HybridProbabilityCalculator(RelativeProbabilityCalculator):
-    def __init__(self, device, loss_fn, sampling_min, history_length, beta, num_classes):
-        RelativeProbabilityCalculator.__init__(self, device, loss_fn, sampling_min, history_length, beta)
-        self.num_classes = num_classes
-
-    def get_relative_probability(self, example):
-        loss = self.loss_fn()(example.output.unsqueeze(0), example.target.unsqueeze(0))
-        loss = loss.cpu().data.numpy()
-        self.update_history(loss)
-        prob = self.calculate_probability(stats.percentileofscore(self.historical_losses, loss, kind="rank"))
-        return max(self.sampling_min, prob)
-
-    def get_absolute_probability(self, example):
-        target = example.target
-        softmax_output = example.softmax_output
-        target_tensor = example.hot_encoded_target
-        l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
-        l2_dist *= l2_dist
-        base = torch.clamp(l2_dist, min=self.sampling_min)
-        prob = torch.clamp(base, max=1).detach()
-        return prob.item()
-
-    def get_probability(self, example):
-        return max(self.get_relative_probability(example), self.get_absolute_probability(example))
 
 class BatchedSelectProbabilityCalculator(object):
     def __init__(self, sampling_min, sampling_max, num_classes, device, prob_transform=None):
@@ -136,9 +91,9 @@ class BatchedSelectProbabilityCalculator(object):
         else:
             self.prob_transform  = lambda x: x
 
-    def get_probability(self, examples):
-        ts = [example.target for e in examples]
-        ss = [example.softmax_output for e in examples]
+    def get_probability(self, examples_and_metadata):
+        ts = [em.example.target for em in examples_and_metadata]
+        ss = [em.example.softmax_output for e in examples_and_metadata]
         targets = torch.stack(ts, dim=0).cpu().numpy()
         softmax_outputs = torch.stack(ss, dim=0).cpu().numpy()
         classes = np.diag(np.arange(self.num_classes))
@@ -148,60 +103,12 @@ class BatchedSelectProbabilityCalculator(object):
         base = np.clip(self.prob_transform(l2_dist), self.sampling_min, self.sampling_max)
         return np.clip(base, self.sampling_min, self.sampling_max)
 
-class SelectProbabiltyCalculator(object):
-    def __init__(self, sampling_min, sampling_max, num_classes, device,
-                 prob_transform=None):
-        # prob_transform should be a function f where f(x) <= 1
-        self.sampling_min = sampling_min
-        self.sampling_max = sampling_max
-        self.num_classes = num_classes
-        self.device = device
-        if prob_transform:
-            self.prob_transform = prob_transform
-        else:
-            self.prob_transform  = lambda x: x
-
-    def get_probability(self, example):
-        target = example.target
-        softmax_output = example.softmax_output
-        target_tensor = example.hot_encoded_target
-        l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
-        l2_dist *= l2_dist
-        base = torch.clamp(self.prob_transform(l2_dist), min=self.sampling_min)
-        prob = torch.clamp(base, max=self.sampling_max).detach()
-        return prob.item()
-
-class ProportionalProbabiltyCalculator(object):
-    def __init__(self, sampling_min, sampling_max, num_classes, device,
-                 prob_transform=None):
-        self.sampling_min = sampling_min
-        self.sampling_max = sampling_max
-        self.num_classes = num_classes
-        self.device = device
-
-        self.theoretical_max = 2
-
-        # prob_transform should be a function f where f(x) <= 1
-        if prob_transform:
-            self.prob_transform = prob_transform
-        else:
-            self.prob_transform  = lambda x: x
-
-    def get_probability(self, example):
-        target = example.target
-        softmax_output = example.softmax_output
-        target_tensor = example.hot_encoded_target
-        l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
-        l2_dist *= l2_dist
-        prob = l2_dist / float(self.theoretical_max)
-        transformed_prob = self.prob_transform(prob)
-        clamped_prob = torch.clamp(transformed_prob,
-                                   min=self.sampling_min)
-        return clamped_prob.item()
-
 class BatchedAlwaysOnProbabilityCalculator(object):
-    def get_probability(self, examples):
-        return [1] * len(examples)
+    def get_probability(self, examples_and_metadata):
+        return [1] * len(examples_and_metadata)
+
+
+################### Deprecated Calculators #########################
 
 class HistoricalProbabilityCalculator(object):
     def __init__(self, calculator_type, std_multiplier=None, bp_probability_calculator=None):
@@ -253,6 +160,36 @@ class MeanHistoricalCalculator(VanillaHistoricalCalculator):
             if all(h < 0.001 for h in hist):
                 return 0
         return 1
+
+
+class ProportionalProbabiltyCalculator(object):
+    def __init__(self, sampling_min, sampling_max, num_classes, device,
+                 prob_transform=None):
+        self.sampling_min = sampling_min
+        self.sampling_max = sampling_max
+        self.num_classes = num_classes
+        self.device = device
+
+        self.theoretical_max = 2
+
+        # prob_transform should be a function f where f(x) <= 1
+        if prob_transform:
+            self.prob_transform = prob_transform
+        else:
+            self.prob_transform  = lambda x: x
+
+    def get_probability(self, example):
+        target = example.target
+        softmax_output = example.softmax_output
+        target_tensor = example.hot_encoded_target
+        l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
+        l2_dist *= l2_dist
+        prob = l2_dist / float(self.theoretical_max)
+        transformed_prob = self.prob_transform(prob)
+        clamped_prob = torch.clamp(transformed_prob,
+                                   min=self.sampling_min)
+        return clamped_prob.item()
+
 
 class GPHistoricalCalculator(VanillaHistoricalCalculator):
     def __init__(self, std_multiplier, bp_selector):

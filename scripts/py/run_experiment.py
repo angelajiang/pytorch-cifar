@@ -6,15 +6,15 @@ import subprocess
 
 def set_experiment_default_args(parser):
     parser.add_argument('--expname', '-e', default="tmp", type=str, help='experiment name')
-    parser.add_argument('--strategy', '-s', default="baseline", type=str, help='baseline, sb')
+    parser.add_argument('--strategy', '-s', default="nofilter", type=str, help='nofilter, sb, kath')
     parser.add_argument('--prob-strategy', '-p', default="relative", type=str, help='relative')
     parser.add_argument('--fp-prob-strategy', '-fp', default="alwayson", type=str, help='alwayson')
     parser.add_argument('--std-mult', default=1, type=float, help='std mult for fp hist calculator')
     parser.add_argument('--beta', default=3, type=float, help='beta on relative')
     parser.add_argument('--dataset', '-d', default="cifar10", type=str, help='mnist, cifar10, svhn, imagenet')
     parser.add_argument('--network', '-n', default="mobilenetv2", type=str, help='network architecture')
-    parser.add_argument('--batch-size', '-b', default=512, type=int, help='batch size')
-    parser.add_argument('--forward-batch-size', '-b', default=128, type=int, help='batch size')
+    parser.add_argument('--batch-size', '-b', default=128, type=int, help='batch size')
+    parser.add_argument('--forward-batch-size', '-fb', default=128, type=int, help='batch size')
     parser.add_argument('--nolog', '-nl', dest='nolog', action='store_true',
                         help='turn off extra logging')
     parser.add_argument('--selector', dest='selector', default="sampling",
@@ -40,8 +40,7 @@ def set_experiment_default_args(parser):
     parser.add_argument('--src-dir', default="./", type=str, help='/path/to/pytorch-cifar')
     parser.add_argument('--dst-dir', default="/proj/BigLearning/ahjiang/output/", type=str, help='/path/to/dst/dir')
 
-    parser.add_argument('--kath', dest='kath', action='store_true', help='Use Katharopoulos18')
-    parser.add_argument('--kath-strategy', default="reweighted", type=str, help='Katharopoulos18')
+    parser.add_argument('--kath-strategy', default="biased", type=str, help='Katharopoulos18')
     parser.add_argument('--static-selectivity', default=4, type=int, help='Scale of superset')
 
     return parser
@@ -58,25 +57,20 @@ def get_lr_sched_path(src_dir, dataset, gradual, fast):
     return path
 
 def get_max_num_backprops(lr_filename, profile):
-    if profile:
-        print("[WARNING] Profiling turned on. Overriding max_num_backprops to 200000")
-        return 200000
+    #if profile:
+    #    num_profile_backprops = 2000000
+    #    print("[WARNING] Profiling turned on. Overriding max_num_backprops to {}".format(num_profile_backprops))
+    #    return num_profile_backprops
     with open(lr_filename) as f:
         data = json.load(f)
     last_lr_jump = max([int(k) for k in data.keys()])
     return int(last_lr_jump * 1.4)
 
-def get_sampling_min(strategy):
-    if strategy == "sb":
-        return 0
-    elif strategy == "baseline":
-        return 1
-    else:
-        print("{} not a strategy".format(strategy))
-        exit()
+def get_sampling_min():
+    return 0
 
-def get_sample_size(batch_size, static_selectivity, selector, is_kath):
-    if is_kath:
+def get_sample_size(batch_size, static_selectivity, selector, strategy):
+    if strategy == "kath":
         return batch_size * static_selectivity
     elif selector == "topk":
         return batch_size / static_selectivity
@@ -114,25 +108,27 @@ def get_output_files(sb_selector,
                      decay,
                      trial,
                      seed,
-                     kath,
+                     strategy,
                      kath_strategy,
                      static_sample_size):
 
-    if kath:
+    if strategy == "kath":
         sb_selector = "kath-{}".format(kath_strategy)
         max_history_length = static_sample_size
+    if strategy == "nofilter":
+        sb_selector = "nofilter"
     if sb_selector == "topk":
         max_history_length = static_sample_size
 
-    output_file = "{}_{}_{}_{}_{}_{}_{}_trial{}_seed{}_v3".format(sb_selector,
-                                                               dataset,
-                                                               net,
-                                                               sampling_min,
-                                                               batch_size,
-                                                               max_history_length,
-                                                               decay,
-                                                               trial,
-                                                               seed)
+    output_file = "{}_{}_{}_{}_{}_{}_{}_trial{}_seed{}_v4".format(sb_selector,
+                                                                  dataset,
+                                                                  net,
+                                                                  sampling_min,
+                                                                  batch_size,
+                                                                  max_history_length,
+                                                                  decay,
+                                                                  trial,
+                                                                  seed)
 
     pickle_file = "{}_{}_{}_{}_{}_{}_{}_trial{}_seed{}".format(sb_selector,
                                                                dataset,
@@ -154,12 +150,6 @@ def get_experiment_dirs(dst_dir, dataset, expname):
         os.mkdir(pickles_dir)
     return output_dir, pickles_dir
 
-def get_prob_strategy(prob_strategy, strategy):
-    if strategy == "baseline":
-        return "alwayson"
-    else:
-        return prob_strategy
-
 def get_imagenet_datadir():
     return "/proj/BigLearning/ahjiang/datasets/imagenet-data"
 
@@ -167,11 +157,11 @@ def get_nolog(nolog, profile):
     return nolog or profile
 
 def get_start_epoch(start_epoch, profile):
-    if profile:
-        print("[WARNING] Profiling turned on. Overriding start_epoch to 0")
-        return 0
-    else:
-        return start_epoch
+    #if profile:
+    #    print("[WARNING] Profiling turned on. Overriding start_epoch to 0")
+    #    return 0
+    #else:
+    return start_epoch
 
 
 def main(args):
@@ -182,14 +172,13 @@ def main(args):
         print("{} is not a file").format(lr_sched_path)
         exit()
     max_num_backprops = get_max_num_backprops(lr_sched_path, args.profile)
-    sampling_min = get_sampling_min(args.strategy)
+    sampling_min = get_sampling_min()
     decay = get_decay()
     output_dir, pickles_dir = get_experiment_dirs(args.dst_dir, args.dataset, args.expname)
     max_history_length = get_max_history_length()
-    static_sample_size = get_sample_size(args.batch_size, args.static_selectivity, args.selector, args.kath)
-    prob_strategy = get_prob_strategy(args.prob_strategy, args.strategy)
-    fp_prob_strategy = get_prob_strategy(args.fp_prob_strategy, args.strategy)
+    static_sample_size = get_sample_size(args.batch_size, args.static_selectivity, args.selector, args.strategy)
     start_epoch = get_start_epoch(args.start_epoch, args.profile)
+    assert(args.strategy in ["nofilter", "sb", "kath"])
 
     for trial in range(1, args.num_trials+1):
         seed = seeder.get_seed()
@@ -202,15 +191,15 @@ def main(args):
                                                     decay,
                                                     trial,
                                                     seed,
-                                                    args.kath,
+                                                    args.strategy,
                                                     args.kath_strategy,
                                                     static_sample_size)
         if args.profile:
-            cmd = "python -m cProfile -o {}.prof main.py ".format(args.expname)
+            cmd = "python -m cProfile -o profs/{}.prof main.py ".format(args.expname)
         else:
             cmd = "python main.py "
-        cmd += "--prob-strategy={} ".format(prob_strategy)
-        cmd += "--fp-prob-strategy={} ".format(fp_prob_strategy)
+        cmd += "--prob-strategy={} ".format(args.prob_strategy)
+        cmd += "--fp-prob-strategy={} ".format(args.fp_prob_strategy)
         cmd += "--prob-pow={} ".format(args.beta)
         cmd += "--max-history-len={} ".format(max_history_length)
         cmd += "--dataset={} ".format(args.dataset)
@@ -237,16 +226,23 @@ def main(args):
         if get_nolog(args.nolog, args.profile):
             cmd += "--no-logging "
 
+        if args.forwardlr:
+            cmd += "--forwardlr "
+
         if args.dataset == "imagenet":
             cmd += "--datadir={} ".format(get_imagenet_datadir())
 
         if args.selector == "topk":
             cmd += "--sample-size={} ".format(static_sample_size)
 
-        if args.kath:
+        if args.strategy == "nofilter":
+            print("[Warning] Using NoFilter, overridding prob-strategy, beta, selector")
+            cmd += "--nofilter "
+
+        if args.strategy == "kath":
             if args.selector == "topk":
                 print("[Warning] Running Kath, overridding --selector")
-            assert(args.kath_strategy in ["reweighting", "biased", "baseline"])
+            assert(args.kath_strategy in ["reweighted", "biased", "baseline"])
             cmd += "--kath "
             cmd += "--kath-strategy={} ".format(args.kath_strategy)
             cmd += "--sample-size={} ".format(static_sample_size)

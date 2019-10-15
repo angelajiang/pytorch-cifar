@@ -19,92 +19,11 @@ def split(dataset_size, split_size):
     strides = get_batches(indices, split_size)
     return strides
 
-
-class Example(object):
-    # TODO: Add ExampleCollection class
-    def __init__(self,
-                 loss=None,
-                 output=None,
-                 softmax_output=None,
-                 target=None,
-                 hot_encoded_target=None,
-                 datum=None,
-                 image_id=None,
-                 select_probability=None,
-                 fb_select_probability=None,
-                 is_correct=None):
-        if loss:
-            self.loss = loss.detach()
-        if output:
-            self.output = output.detach()
-        if softmax_output:
-            self.softmax_output = softmax_output.detach()
-        if datum is not None:
-            self.datum = datum.detach()
-        if target is not None:
-            self.target = target.detach()
-
-        self.hot_encoded_target = hot_encoded_target
-        self.image_id = image_id
-        self.select_probability_ = select_probability
-        self.fp_select_probability_ = fb_select_probability
-        self.backpropped_loss = None   # Populated after backprop
-        self.fp_select_ = True
-
-    def set_select(self, select, forwards):
-        if forwards:
-            self.fp_select_ = select
-        else:
-            self.select_ = select
-
-    def get_select(self, forwards):
-        if forwards:
-            return self.fp_select_
-        else:
-            return self.select_
-
-    def set_sp(self, sp, forwards):
-        if forwards:
-            self.fp_select_probability_ = sp
-        else:
-            self.select_probability_ = sp
-
-    def get_sp(self, forwards):
-        if forwards:
-            return self.fp_select_probability_
-        else:
-            return self.select_probability_
-
-    @property
-    def predicted(self):
-        _, predicted = self.softmax_output.max(0)
-        return predicted
-
-    @property
-    def is_correct(self):
-        return self.predicted.eq(self.target)
-
 class Dataset(object):
     # TODO: remove this first_split_size nonsense
     def __init__(self, split_size):
         self._split_size = split_size
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.first_split = True
-
-    def init_examples(self):
-        self.examples = {}
-        for datum, target, image_id in self.trainset:
-            hot_encoded_target = self.hot_encode_scalar(target)
-            target_tensor = torch.tensor(target, dtype=torch.long).to(self.device)
-            self.examples[image_id] = Example(datum=datum,
-                                              target=target_tensor,
-                                              image_id=image_id,
-                                              hot_encoded_target=hot_encoded_target)
-
-    def hot_encode_scalar(self, target):
-        target_vector = torch.eye(len(self.classes))
-        target_tensor = target_vector[target]
-        return target_tensor
 
     @property
     def split_size(self):
@@ -147,7 +66,7 @@ class CIFAR10(Dataset):
         self.testloader = torch.utils.data.DataLoader(testset,
                                                       batch_size=test_batch_size,
                                                       shuffle=False,
-                                                      num_workers=0)
+                                                      num_workers=2)
 
         # Training set
         if self.augment:
@@ -180,7 +99,9 @@ class CIFAR10(Dataset):
                                       ])
 
 class MNIST(Dataset):
-    def __init__(self, split_size, test_batch_size):
+    def __init__(self, device, split_size, test_batch_size):
+
+        super(MNIST, self).__init__(split_size)
 
         super(MNIST, self).__init__(split_size)
 
@@ -195,7 +116,7 @@ class MNIST(Dataset):
                            transforms.ToTensor(),
                            transforms.Normalize((0.1307,), (0.3081,))
                        ])),
-            batch_size=test_batch_size, shuffle=False, num_workers=0)
+            batch_size=test_batch_size, shuffle=False, num_workers=2)
 
         # Training set
         self.trainset = lib.mnist.MNIST('../data', train=True, download=True,
@@ -321,7 +242,7 @@ class ImageNet(Dataset):
         self.testloader = torch.utils.data.DataLoader(testset,
                                                       batch_size=test_batch_size,
                                                       shuffle=False,
-                                                      num_workers=0)
+                                                      num_workers=2)
 
         # Training set
         print("Performing data augmentation on ImageNet")

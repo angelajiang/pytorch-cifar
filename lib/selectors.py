@@ -7,27 +7,22 @@ import torch.nn as nn
 from random import shuffle
 
 # TODO: Transform into base classes
-def get_selector(selector_type, probability_calculator, num_images_to_prime, sample_size, forwards):
+def get_selector(selector_type, probability_calculator, num_images_to_prime, sample_size):
     if selector_type == "sampling":
-        final_selector = SamplingSelector(probability_calculator, forwards)
+        final_selector = SamplingSelector(probability_calculator)
     elif selector_type == "alwayson":
-        final_selector = AlwaysOnSelector(probability_calculator, forwards)
-    elif selector_type == "deterministic":
-        final_selector = DeterministicSamplingSelector(probability_calculator, forwards)
+        final_selector = AlwaysOnSelector(probability_calculator)
     elif selector_type == "baseline":
         final_selector = BaselineSelector()
     elif selector_type == "topk":
         final_selector = TopKSelector(probability_calculator,
-                                      sample_size,
-                                      forwards)
+                                      sample_size)
     elif selector_type == "lowk":
         final_selector = LowKSelector(probability_calculator,
-                                      sample_size,
-                                      forwards)
+                                      sample_size)
     elif selector_type == "randomk":
         final_selector = RandomKSelector(probability_calculator,
-                                         sample_size,
-                                         forwards)
+                                         sample_size)
     else:
         print("Use sb-strategy in {sampling, deterministic, baseline, topk, lowk, randomk}")
         exit()
@@ -75,23 +70,22 @@ class TopKSelector(object):
         return indices
 
     def mark(self, forward_pass_batch):
-        for example in forward_pass_batch:
-            example.set_sp(self.get_select_probability(example), self.forwards)
-        sps = [example.get_sp(self.forwards) for example in forward_pass_batch]
-        indices = self.get_indices(sps) 
+        for em in forward_pass_batch:
+            em.example.select_probability = self.get_select_probability(em.example)
+        sps = [em.example.select_probability for em in forward_pass_batch]
+        indices = np.array(sps).argsort()[-self.sample_size:]
         for i in range(len(forward_pass_batch)):
             if i in indices:
-                forward_pass_batch[i].set_select(True, self.forwards)
+                forward_pass_batch[i].example.select = True
             else:
-                forward_pass_batch[i].set_select(False, self.forwards)
+                forward_pass_batch[i].example.select = False
         return forward_pass_batch
 
 
 class LowKSelector(TopKSelector):
     def __init__(self, probability_calculator, sample_size, forwards=False):
         super(LowKSelector, self).__init__(probability_calculator,
-                                           sample_size,
-                                           forwards)
+                                           sample_size)
 
     def get_indices(self, sps):
         indices = np.array(sps).argsort()[:self.sample_size]
@@ -99,10 +93,9 @@ class LowKSelector(TopKSelector):
 
 
 class RandomKSelector(TopKSelector):
-    def __init__(self, probability_calculator, sample_size, forwards=False):
+    def __init__(self, probability_calculator, sample_size):
         super(RandomKSelector, self).__init__(probability_calculator,
-                                              sample_size,
-                                              forwards)
+                                              sample_size)
 
     def get_indices(self, sps):
         all_indices = np.array(sps).argsort()
@@ -128,55 +121,17 @@ class SamplingSelector(object):
 
     def mark(self, forward_pass_batch):
         probs = self.get_select_probability(forward_pass_batch)
-        for example, prob in zip(forward_pass_batch, probs):
-            example.set_sp(prob, self.forwards)
-            is_selected = self.select(example)
-            example.set_select(is_selected, self.forwards)
+        for em, prob in zip(forward_pass_batch, probs):
+            em.example.select_probability = prob
+            em.example.select = self.select(em.example)
         return forward_pass_batch
 
-
 class AlwaysOnSelector(SamplingSelector):
-    def __init__(self, probability_calculator, forwards=False):
-        super(AlwaysOnSelector, self).__init__(probability_calculator, forwards)
+    def __init__(self, probability_calculator):
+        super(AlwaysOnSelector, self).__init__(probability_calculator)
 
     def select(self, example):
         return True
-
-
-class DeterministicSamplingSelector(object):
-    def __init__(self, probability_calculator, forwards=False, initial_sum=1):
-        self.forwards = forwards
-        self.global_select_sums = {}
-        self.image_ids = set()
-        self.get_select_probability = probability_calculator.get_probability
-        self.initial_sum = initial_sum
-
-    def increase_select_sum(self, example):
-        select_probability = example.get_sp(self.forwards)
-        image_id = example.image_id.item()
-        if image_id not in self.image_ids:
-            self.image_ids.add(image_id)
-            self.global_select_sums[image_id] = self.initial_sum
-        self.global_select_sums[image_id] += select_probability
-
-    def decrease_select_sum(self, example):
-        image_id = example.image_id.item()
-        self.global_select_sums[image_id] -= 1
-        assert(self.global_select_sums[image_id] >= 0)
-
-    def select(self, example):
-        image_id = example.image_id.item()
-        return self.global_select_sums[image_id] >= 1
-
-    def mark(self, forward_pass_batch):
-        for example in forward_pass_batch:
-            sp_tensor = self.get_select_probability(example)
-            example.set_sp(sp_tensor.item(), self.forwards)
-            self.increase_select_sum(example)
-            example.set_select(self.select(example), self.forwards)
-            if example.get_select(self.forwards):
-                self.decrease_select_sum(example)
-        return forward_pass_batch
 
 class BaselineSelector(object):
 
@@ -184,9 +139,9 @@ class BaselineSelector(object):
         self.forwards = forwards
 
     def mark(self, forward_pass_batch):
-        for example in forward_pass_batch:
-            example.set_sp(torch.tensor([[1]]).item(), self.forwards)
-            example.set_select(True, self.forwards)
+        for em in forward_pass_batch:
+            em.example.select_probability = torch.tensor([[1]]).item()
+            em.example.select = self.select(em.example)
         return forward_pass_batch
 
 

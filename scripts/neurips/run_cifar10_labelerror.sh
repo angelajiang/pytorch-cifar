@@ -22,8 +22,8 @@ HIST_SIZE=1024
 
 EXP_NAME=$EXP_PREFIX
 
-mkdir "/fawnstore2/users/ahjiang/output/cifar10/"
-OUTPUT_DIR="/fawnstore2/users/ahjiang/output/cifar10/"$EXP_NAME
+mkdir "/proj/BigLearning/ahjiang/output/cifar10/"
+OUTPUT_DIR="/proj/BigLearning/ahjiang/output/cifar10/"$EXP_NAME
 PICKLE_DIR=$OUTPUT_DIR/pickles
 mkdir $OUTPUT_DIR
 mkdir $PICKLE_DIR
@@ -47,7 +47,6 @@ do
     --batch-size=$BATCH_SIZE \
     --max-history-len=$HIST_SIZE \
     --decay=$DECAY \
-    --max-history-len=$HIST_SIZE \
     --max-num-backprops=$MAX_NUM_BACKPROPS \
     --pickle-dir=$PICKLE_DIR \
     --pickle-prefix=$PICKLE_PREFIX \
