@@ -23,6 +23,7 @@ from utils import progress_bar
 import lib.backproppers
 import lib.calculators
 import lib.datasets
+import lib.forwardproppers
 import lib.loggers
 import lib.losses
 import lib.selectors
@@ -62,6 +63,8 @@ def set_experiment_default_args(parser):
                         help='turn on data augmentation for CIFAR10')
     parser.add_argument('--batch-size', type=int, default=128, metavar='N',
                         help='input batch size for training (default: 1)')
+    parser.add_argument('--forward-batch-size', type=int, default=128, metavar='N',
+                        help='batch size for informative forward pass')
     parser.add_argument('--test-batch-size', type=int, default=100, metavar='N',
                         help='input batch size for testing (default: 100)')
     parser.add_argument('--log-interval', type=int, default=1, metavar='N',
@@ -322,6 +325,7 @@ def print_config(args):
     print("config loss-fn {}".format(args.loss_fn))
     print("config sb-strategy {}".format(args.sb_strategy))
     print("config prob-strategy {}".format(args.prob_strategy))
+    print("config fp-prob-strategy {}".format(args.fp_prob_strategy))
     print("config prob-loss-fn {}".format(args.prob_loss_fn))
     print("config max-num-backprops {}".format(args.max_num_backprops))
     print("config sampling-min {}".format(args.sampling_min))
@@ -554,7 +558,8 @@ def main(args):
                                                            loss_fn)
         trainer = lib.trainer.Trainer(device,
                                       dataset.model,
-                                      selector,
+                                      dataset,
+                                      bp_selector,
                                       backpropper,
                                       args.batch_size,
                                       loss_fn,

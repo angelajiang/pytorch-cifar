@@ -53,14 +53,21 @@ class PrimedSelector(object):
 
 
 class TopKSelector(object):
-    def __init__(self, probability_calculator, sample_size):
+    def __init__(self, probability_calculator, sample_size, forwards=False):
         self.get_select_probability = probability_calculator.get_probability
         self.sample_size = sample_size
 
     def select(self, example):
-        select_probability = example.select_probability
-        draw = np.random.uniform(0, 1)
+        select_probability = example.get_sp(self.forwards)
+        if hasattr(example, "fp_draw"):
+            draw = example.fp_draw
+        else:
+            draw = np.random.uniform(0, 1)
         return draw < select_probability.item()
+
+    def get_indices(self, sps):
+        indices = np.array(sps).argsort()[-self.sample_size:]
+        return indices
 
     def mark(self, forward_pass_batch):
         for em in forward_pass_batch:
@@ -98,12 +105,18 @@ class RandomKSelector(TopKSelector):
 
 
 class SamplingSelector(object):
-    def __init__(self, probability_calculator):
+    def __init__(self, probability_calculator, forwards=False):
         self.get_select_probability = probability_calculator.get_probability
+        self.forwards = forwards
 
     def select(self, example):
-        select_probability = example.select_probability
-        draw = np.random.uniform(0, 1)
+        select_probability = example.get_sp(self.forwards)
+        if hasattr(example, "fp_draw"):
+            draw = example.fp_draw
+            print("Use old fp_draw: {:2f} > {:2f}".format(draw,
+                                                            select_probability))
+        else:
+            draw = np.random.uniform(0, 1)
         return draw < select_probability
 
     def mark(self, forward_pass_batch):
@@ -122,8 +135,8 @@ class AlwaysOnSelector(SamplingSelector):
 
 class BaselineSelector(object):
 
-    def select(self, example):
-        return True
+    def __init__(self, forwards=False):
+        self.forwards = forwards
 
     def mark(self, forward_pass_batch):
         for em in forward_pass_batch:

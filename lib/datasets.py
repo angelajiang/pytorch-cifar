@@ -88,6 +88,7 @@ class CIFAR10(Dataset):
                                           download=False,
                                           transform=transform_train,
                                           randomize_labels=randomize_labels)
+        self.init_examples()
 
         self.num_training_images = len(self.trainset)
 
@@ -102,7 +103,9 @@ class MNIST(Dataset):
 
         super(MNIST, self).__init__(split_size)
 
-        self.model = MNISTNet().to(device)
+        super(MNIST, self).__init__(split_size)
+
+        self.model = MNISTNet().to(self.device)
 
         self.classes = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
 
@@ -121,6 +124,7 @@ class MNIST(Dataset):
                            transforms.ToTensor(),
                            transforms.Normalize((0.1307,), (0.3081,))
                        ]))
+        self.init_examples()
         self.unnormalizer = transforms.Compose([transforms.Normalize(mean = [ 0., 0., 0. ],
                                                             std = [ 1/0.3081]),
                                        transforms.Normalize(mean = [ -0.1307],
@@ -201,6 +205,7 @@ class SVHN(Dataset):
                                      download=False,
                                      transform=transform_train)
         self.trainset = ConcatDataset([self.trainset1, self.trainset2])
+        self.init_examples()
 
         self.num_training_images = len(self.trainset)
 
@@ -249,6 +254,7 @@ class ImageNet(Dataset):
         ])
         self.trainset = IndexedImageFolder(traindir,
                                            transform_train)
+        self.init_examples()
         self.num_training_images = len(self.trainset)
         print(self.num_training_images)
         self.unnormalizer = transforms.Compose([transforms.Normalize(mean = [ 0., 0., 0. ],

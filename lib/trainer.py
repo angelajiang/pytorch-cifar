@@ -64,6 +64,7 @@ class Trainer(object):
     def __init__(self,
                  device,
                  net,
+                 dataset,
                  selector,
                  backpropper,
                  batch_size,
@@ -73,6 +74,7 @@ class Trainer(object):
                  forwardlr=False):
         self.device = device
         self.net = net
+        self.dataset = dataset
         self.selector = selector
         self.backpropper = backpropper
         self.loss_fn = loss_fn
