@@ -2,8 +2,9 @@ expname=$1
 SAMPLING_MIN=$2
 NET=$3
 BATCH_SIZE=$4
-LOSS=$5
-MAX_HISTORY_LEN=$6
+PROB_STRATEGY=$5
+LOSS=$6
+MAX_HISTORY_LEN=$7
 
 NUM_TRIALS=1
 
@@ -19,7 +20,7 @@ DECAY=0.0005
 MAX_NUM_BACKPROPS=5500000
 SEED=1337
 
-EXP_NAME=$EXP_PREFIX"_"$LOSS
+EXP_NAME=$EXP_PREFIX"_"$PROB_STRATEGY"_"$LOSS
 
 mkdir "/proj/BigLearning/ahjiang/output/cifar10/"
 OUTPUT_DIR="/proj/BigLearning/ahjiang/output/cifar10/"$EXP_NAME
@@ -38,7 +39,7 @@ do
   echo $OUTPUT_DIR/$OUTPUT_FILE
 
   time python main.py \
-    --prob-strategy="relative" \
+    --prob-strategy=$PROB_STRATEGY \
     --max-history-len=$MAX_HISTORY_LEN \
     --prob-loss-fn=$LOSS \
     --sb-start-epoch=1 \

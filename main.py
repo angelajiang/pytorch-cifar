@@ -21,13 +21,16 @@ from models import *
 from utils import progress_bar
 
 import lib.backproppers
+import lib.calculators
 import lib.datasets
+import lib.forwardproppers
 import lib.loggers
 import lib.losses
 import lib.selectors
 import lib.trainer
 
 BIAS_LOG_INTERVAL = 10
+start_time_seconds = time.time()
 
 def count_tensors():
     num_tensors = 0
@@ -49,6 +52,8 @@ def set_random_seeds(seed):
     return
 
 def set_experiment_default_args(parser):
+
+    # Basic training options
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
     parser.add_argument('--lr-sched', default=None, help='Path to learning rate schedule')
     parser.add_argument('--momentum', default=0.9, type=float, help='learning rate')
@@ -57,10 +62,10 @@ def set_experiment_default_args(parser):
                         help='checkpoint to resume from')
     parser.add_argument('--augment', '-a', dest='augment', action='store_true',
                         help='turn on data augmentation for CIFAR10')
-    parser.add_argument('--kath', '-k', dest='kath', action='store_true',
-                        help='Use Katharopoulous18 mode')
     parser.add_argument('--batch-size', type=int, default=128, metavar='N',
                         help='input batch size for training (default: 1)')
+    parser.add_argument('--forward-batch-size', type=int, default=128, metavar='N',
+                        help='batch size for informative forward pass')
     parser.add_argument('--test-batch-size', type=int, default=100, metavar='N',
                         help='input batch size for testing (default: 100)')
     parser.add_argument('--log-interval', type=int, default=1, metavar='N',
@@ -71,46 +76,56 @@ def set_experiment_default_args(parser):
                         help='which network architecture to train')
     parser.add_argument('--datadir', default="./", metavar='N',
                         help='path to directory for ImageData loader')
-    parser.add_argument('--write-images', default=False, type=bool,
-                        help='whether or not write png images by id')
     parser.add_argument('--seed', type=int, default=None,
                         help='seed for randomization; None to not set seed')
     parser.add_argument('--optimizer', default="sgd", metavar='N',
                         help='Optimizer among {sgd, adam}')
     parser.add_argument('--loss-fn', default="cross", metavar='N',
                         help='Loss function among {cross, hinge, cross_squared, cross_custom}')
+    parser.add_argument('--max-num-backprops', type=int, default=float('inf'), metavar='N',
+                        help='how many images to backprop total')
 
+    # SB options
+    parser.add_argument('--sb-start-epoch', type=float, default=0,
+                        help='epoch to start selective backprop')
     parser.add_argument('--sb-strategy', default="sampling", metavar='N',
                         help='Selective backprop strategy among {baseline, deterministic, sampling}')
-    parser.add_argument('--prob-strategy', default="vanilla", metavar='N',
-                        help='Probability calculator strategy among {vanilla, pscale, proportional, relative}')
+    parser.add_argument('--prob-strategy', default="alwayson", metavar='N',
+                        help='Probability calculator among {alwayson, pscale, proportional, relative}')
     parser.add_argument('--prob-pow', type=float, default=1, metavar='N',
                         help='Power to scale probability by')
     parser.add_argument('--prob-loss-fn', default="cross", metavar='N',
                         help='Loss function among {cross, mse}')
     parser.add_argument('--max-history-len', type=int, default=None, metavar='N',
                         help='History length for relative prob calculator')
-
-    parser.add_argument('--sb-start-epoch', type=int, default=0,
-                        help='epoch to start selective backprop')
-    parser.add_argument('--pickle-dir', default="/tmp/",
-                        help='directory for pickles')
-    parser.add_argument('--pickle-prefix', default="stats",
-                        help='file prefix for pickles')
-    parser.add_argument('--max-num-backprops', type=int, default=float('inf'), metavar='N',
-                        help='how many images to backprop total')
-
+    parser.add_argument('--std-multiplier', type=float, default=1, metavar='N',
+                        help='stdev multiplier for forward pass prob calculator')
+    parser.add_argument('--sample-size', type=int, default=64, metavar='N',
+                        help='input batch size for training (default: 1)')
     parser.add_argument('--sampling-strategy', default="square", metavar='N',
                         help='Selective backprop sampling strategy among {nosquare, square}')
-    parser.add_argument('--sampling-min', type=float, default=1,
+    parser.add_argument('--sampling-min', type=float, default=0,
                         help='Minimum sampling rate for sampling strategy')
     parser.add_argument('--sampling-max', type=float, default=1,
                         help='Maximum sampling rate for sampling strategy')
     parser.add_argument('--selectivity-scalar', type=float, default=1,
                         help='scale the select probability')
+    parser.add_argument('--forwardlr', dest='forwardlr', action='store_true',
+                        help='LR schedule based on forward passes')
+    parser.add_argument('--nofilter', dest='nofilter', action='store_true',
+                        help='Do not use backprop filter')
+    parser.add_argument('--kath', '-k', dest='kath', action='store_true',
+                        help='Use Katharopoulous18 mode')
+    parser.add_argument('--kath-strategy', default='biased', type=str,
+                        help='Katharopoulous18 mode in {biased, reweighted, baseline}')
 
     # Logging and checkpointing interval
-    parser.add_argument('--no-logging', type=bool, default=False, help='prevent logging')
+    parser.add_argument('--no-logging', dest='no_logging', action='store_true',
+                        help='turn off unnecessary logging')
+    parser.add_argument('--pickle-dir', default="/tmp/",
+                        help='directory for pickles')
+    parser.add_argument('--pickle-prefix', default="stats",
+                        help='file prefix for pickles')
     parser.add_argument('--imageids-log-interval', type=int, default=10,
                         help='How often to write image ids to file (in epochs)')
     parser.add_argument('--losses-log-interval', type=int, default=10,
@@ -122,10 +137,11 @@ def set_experiment_default_args(parser):
     parser.add_argument('--log-bias', dest='log_bias', action='store_true',
                         help='Log bias by epoch')
 
+    # Random features
     parser.add_argument('--randomize-labels', type=float, default=None,
                         help='fraction of labels to randomize')
-    parser.add_argument('--sample-size', type=int, default=64, metavar='N',
-                        help='input batch size for training (default: 1)')
+    parser.add_argument('--write-images', default=False, type=bool,
+                        help='whether or not write png images by id')
 
     return parser
 
@@ -178,14 +194,14 @@ class State:
             print(self.target_confidences_pickle_file)
             pickle.dump(self.target_confidences, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-
-def test(args,
-         dataset,
-         device,
-         epoch,
-         state,
-         logger,
-         loss_fn):
+def mini_test(args,
+              dataset,
+              device,
+              epoch,
+              state,
+              logger,
+              trainer,
+              loss_fn):
 
     net = dataset.model
     testloader = dataset.testloader
@@ -195,7 +211,49 @@ def test(args,
     correct = 0
     total = 0
 
-    if epoch % args.confidences_log_interval == 0:
+    with torch.no_grad():
+        for batch_idx, (inputs, targets, image_ids) in enumerate(testloader):
+            inputs, targets = inputs.to(device), targets.to(device)
+            outputs = net(inputs)
+
+            loss = loss_fn()(outputs, targets)
+
+            test_loss += loss.item()
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
+
+    test_loss /= len(testloader.dataset)
+    print('test_debug,{},{},{},{:.6f},{:.6f},{},{}'.format(
+                epoch,
+                trainer.global_num_backpropped,
+                logger.global_num_skipped,
+                test_loss,
+                100.*correct/total,
+                0,
+                time.time() - start_time_seconds
+                ))
+
+def test(args,
+         dataset,
+         device,
+         epoch,
+         state,
+         logger,
+         trainer,
+         loss_fn,
+         no_logging
+         ):
+
+    net = dataset.model
+    testloader = dataset.testloader
+
+    net.eval()
+    test_loss = 0
+    correct = 0
+    total = 0
+
+    if epoch % args.confidences_log_interval == 0 and not no_logging:
         write_target_confidences = True
     else:
         write_target_confidences = False
@@ -221,21 +279,22 @@ def test(args,
                 state.update_target_confidences(epoch,
                                                 confidences,
                                                 results,
-                                                logger.global_num_backpropped)
+                                                trainer.global_num_backpropped)
     if write_target_confidences:
         state.write_summaries()
 
     test_loss /= len(testloader.dataset)
-    print('test_debug,{},{},{},{:.6f},{:.6f},{}'.format(
+    print('test_debug,{},{},{},{:.6f},{:.6f},{},{}'.format(
                 epoch,
-                logger.global_num_backpropped,
+                trainer.global_num_backpropped,
                 logger.global_num_skipped,
                 test_loss,
                 100.*correct/total,
-                time.time()))
+                0,
+                time.time() - start_time_seconds))
 
     # Save checkpoint.
-    if args.checkpoint_interval:
+    if args.checkpoint_interval and not profile:
         if epoch % args.checkpoint_interval == 0:
             acc = 100.*correct/total
             print('Saving..')
@@ -243,7 +302,7 @@ def test(args,
                 'net': net.state_dict(),
                 'acc': acc,
                 'epoch': epoch,
-                'num_backpropped': logger.global_num_backpropped,
+                'num_backpropped': trainer.global_num_backpropped,
                 'num_skipped': logger.global_num_skipped,
                 'dataset': dataset,
             }
@@ -269,17 +328,22 @@ def print_config(args):
     print("config loss-fn {}".format(args.loss_fn))
     print("config sb-strategy {}".format(args.sb_strategy))
     print("config prob-strategy {}".format(args.prob_strategy))
+    print("config fp-prob-strategy {}".format(args.fp_prob_strategy))
     print("config prob-loss-fn {}".format(args.prob_loss_fn))
     print("config max-num-backprops {}".format(args.max_num_backprops))
-    print("config sampling-strategy {}".format(args.sampling_strategy))
     print("config sampling-min {}".format(args.sampling_min))
     print("config sampling-max {}".format(args.sampling_max))
     print("config prob_pow {}".format(args.prob_pow))
-    print("config max_history_len {}".format(args.max_history_len))
+    print("config max-history_len {}".format(args.max_history_len))
+    print("config forwardlr {}".format(args.forwardlr))
+    print("config nofilter {}".format(args.nofilter))
+    print("config kath {}".format(args.kath))
+    print("config kath-strategy {}".format(args.kath_strategy))
 
 def main(args):
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    assert device == "cuda"
 
     set_random_seeds(args.seed)
 
@@ -310,6 +374,8 @@ def main(args):
         net = ShuffleNetG2()
     elif args.net == "senet":
         net = SENet18()
+    else:
+        net = ResNet18()
     net = net.to(device)
 
     # Device case
@@ -322,12 +388,19 @@ def main(args):
         dataset = lib.datasets.CIFAR10(net,
                                        args.test_batch_size,
                                        args.augment,
+                                       #args.batch_size * 4,
+                                       None,
                                        randomize_labels=args.randomize_labels)
     elif args.dataset == "mnist":
-        dataset = lib.datasets.MNIST(device, args.test_batch_size)
+        dataset = lib.datasets.MNIST(
+                                    #10000,
+                                    None,
+                                    args.test_batch_size)
     elif args.dataset == "svhn":
         dataset = lib.datasets.SVHN(net,
                                     args.test_batch_size,
+                                    #100000,
+                                    None,
                                     args.augment)
     elif args.dataset == "imagenet":
         traindir = os.path.join(args.datadir, "train")
@@ -335,11 +408,13 @@ def main(args):
         dataset = lib.datasets.ImageNet(net,
                                         args.test_batch_size,
                                         traindir,
-                                        valdir)
+                                        valdir,
+                                        100000)
     else:
-        print("Only cifar10, mnist, and svhn are implemented")
+        print("Only cifar10, mnist, svhn and imagenet are implemented")
         exit()
 
+    print(dataset.num_training_images)
     print_config(args)
 
     # Checkpointing case
@@ -395,6 +470,9 @@ def main(args):
         print("Error: Loss function cannot be {}".format(args.loss_fn))
         exit()
 
+
+    # Miscellaneous setup
+
     state = State(dataset.num_training_images,
                   args.pickle_dir,
                   args.pickle_prefix,
@@ -407,129 +485,86 @@ def main(args):
             image_writer.write_partition(partition)
 
     ## Setup Trainer ##
-    square = args.sampling_strategy in ["square"]
 
-    ## Setup Trainer:ProbabilityCalculator ##
-    if args.prob_pow:
-        prob_transform = lambda x: torch.pow(x, args.prob_pow)
-    else:
-        prob_transform = None
-
-    if args.prob_strategy == "vanilla":
-        probability_calculator = lib.selectors.SelectProbabiltyCalculator(args.sampling_min,
-                                                                          args.sampling_max,
-                                                                          len(dataset.classes),
-                                                                          device,
-                                                                          square=square,
-                                                                          prob_transform=prob_transform)
-    elif args.prob_strategy == "relative":
-        probability_calculator = lib.selectors.RelativeProbabiltyCalculator(device,
-                                                                            prob_loss_fn,
-                                                                            args.sampling_min,
-                                                                            args.max_history_len)
-    elif args.prob_strategy == "pscale":
-        pscale_update_steps = dataset.num_training_images / 5
-        print("config pscale_update_steps {}".format(pscale_update_steps))
-        probability_calculator = lib.selectors.PScaledProbabiltyCalculator(args.sampling_min,
+    # Setup Trainer: Calculator and Selector
+    probability_calculator = lib.calculators.get_probability_calculator(args.prob_strategy,
+                                                                           device,
+                                                                           prob_loss_fn,
+                                                                           args.sampling_min,
                                                                            args.sampling_max,
                                                                            len(dataset.classes),
-                                                                           device,
-                                                                           pscale_update_steps,
-                                                                           square=square,
-                                                                           prob_transform=prob_transform)
-    elif args.prob_strategy == "proportional":
-        probability_calculator = lib.selectors.ProportionalProbabiltyCalculator(args.sampling_min,
-                                                                                args.sampling_max,
-                                                                                len(dataset.classes),
-                                                                                device,
-                                                                                square=square,
-                                                                                prob_transform=prob_transform)
-    else:
-        print("Use prob-strategy in {vanilla, pscale, proportional}")
-        exit()
+                                                                           args.max_history_len,
+                                                                           args.prob_pow)
 
-    if args.sb_strategy == "sampling":
-        final_selector = lib.selectors.SamplingSelector(probability_calculator)
-        if args.log_bias:
-            final_backpropper = lib.backproppers.RandomGradientAndSelectivityLoggingBackpropper(device,
-                                                                     dataset.model,
-                                                                     optimizer,
-                                                                     loss_fn,
-                                                                     10,
-                                                                     10)
+    num_images_to_prime = int(args.sb_start_epoch * dataset.num_training_images)
+    selector = lib.selectors.get_selector(args.sb_strategy,
+                                             probability_calculator,
+                                             num_images_to_prime,
+                                             args.sample_size)
+
+    # Setup Trainer: Backpropper and Trainer
+    if args.nofilter:
+        backpropper = lib.backproppers.SamplingBackpropper(device,
+                                                           dataset.model,
+                                                           optimizer,
+                                                           loss_fn)
+        trainer = lib.trainer.NoFilterTrainer(device,
+                                              dataset.model,
+                                              dataset,
+                                              backpropper,
+                                              args.batch_size,
+                                              loss_fn,
+                                              max_num_backprops=args.max_num_backprops,
+                                              lr_schedule=args.lr_sched,
+                                              forwardlr=args.forwardlr)
+
+    elif args.kath:
+        selector = None
+        if args.kath_strategy == "reweighted":
+            final_backpropper = lib.backproppers.ReweightedBackpropper(device,
+                                                                       dataset.model,
+                                                                       optimizer,
+                                                                       loss_fn)
         else:
             final_backpropper = lib.backproppers.SamplingBackpropper(device,
                                                                      dataset.model,
                                                                      optimizer,
                                                                      loss_fn)
-    elif args.sb_strategy == "deterministic":
-        final_selector = lib.selectors.DeterministicSamplingSelector(probability_calculator,
-                                                                     initial_sum=1)
-        final_backpropper = lib.backproppers.SamplingBackpropper(device,
-                                                                 dataset.model,
-                                                                 optimizer,
-                                                                 loss_fn)
-    elif args.sb_strategy == "baseline":
-        final_selector = lib.selectors.BaselineSelector()
-        final_backpropper = lib.backproppers.BaselineBackpropper(device,
-                                                                 dataset.model,
-                                                                 optimizer,
-                                                                 loss_fn)
-    elif args.sb_strategy == "topk":
-        final_selector = lib.selectors.TopKSelector(probability_calculator,
-                                                    args.sample_size)
-        if args.log_bias:
-            final_backpropper = lib.backproppers.RandomGradientAndSelectivityLoggingBackpropper(device,
-                                                                     dataset.model,
-                                                                     optimizer,
-                                                                     loss_fn,
-                                                                     10,
-                                                                     BIAS_LOG_INTERVAL)
-        else:
-            final_backpropper = lib.backproppers.BaselineBackpropper(device,
-                                                                     dataset.model,
-                                                                     optimizer,
-                                                                     loss_fn)
-    elif args.sb_strategy == "lowk":
-        final_selector = lib.selectors.LowKSelector(probability_calculator,
-                                                    args.sample_size)
-        final_backpropper = lib.backproppers.BaselineBackpropper(device,
-                                                                 dataset.model,
-                                                                 optimizer,
-                                                                 loss_fn)
-    elif args.sb_strategy == "randomk":
-        final_selector = lib.selectors.RandomKSelector(probability_calculator,
-                                                       args.sample_size)
-        final_backpropper = lib.backproppers.BaselineBackpropper(device,
-                                                                 dataset.model,
-                                                                 optimizer,
-                                                                 loss_fn)
-    else:
-        print("Use sb-strategy in {sampling, deterministic, baseline, topk, lowk, randomk}")
-        exit()
-
-
-    if args.kath:
-        selector = None
-        final_backpropper = lib.backproppers.ReweightedBackpropper(device,
-                                                                   dataset.model,
-                                                                   optimizer,
-                                                                   loss_fn)
-        backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.BaselineBackpropper(device,
+        backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.SamplingBackpropper(device,
                                                                                               dataset.model,
                                                                                               optimizer,
                                                                                               loss_fn),
                                                          final_backpropper,
-                                                         args.sb_start_epoch,
-                                                         epoch=start_epoch)
-        trainer = lib.trainer.KathTrainer(device,
-                                          dataset.model,
-                                          backpropper,
-                                          args.batch_size,
-                                          args.sample_size,
-                                          loss_fn,
-                                          max_num_backprops=args.max_num_backprops,
-                                          lr_schedule=args.lr_sched)
+                                                         num_images_to_prime)
+        if args.kath_strategy == "baseline":
+            trainer = lib.trainer.KathBaselineTrainer(device,
+                                                      dataset.model,
+                                                      backpropper,
+                                                      args.batch_size,
+                                                      args.sample_size,
+                                                      loss_fn,
+                                                      max_num_backprops=args.max_num_backprops,
+                                                      lr_schedule=args.lr_sched)
+        else:
+            trainer = lib.trainer.KathTrainer(device,
+                                              dataset.model,
+                                              backpropper,
+                                              args.batch_size,
+                                              args.sample_size,
+                                              loss_fn,
+                                              max_num_backprops=args.max_num_backprops,
+                                              lr_schedule=args.lr_sched)
+    elif args.log_bias:
+        selector = lib.selectors.PrimedSelector(lib.selectors.BaselineSelector(),
+                                                final_selector,
+                                                args.sb_start_epoch,
+                                                epoch=start_epoch)
+        backpropper = lib.backproppers.RandomGradientAndSelectivityLoggingBackpropper(device,
+                                                                                      dataset.model,
+                                                                                      optimizer,
+                                                                                      loss_fn,
+                                                                                      10,
+                                                                                      BIAS_LOG_INTERVAL)
     else:
         selector = lib.selectors.PrimedSelector(lib.selectors.BaselineSelector(),
                                                 final_selector,
@@ -545,17 +580,21 @@ def main(args):
                                                          epoch=start_epoch)
         trainer = lib.trainer.Trainer(device,
                                       dataset.model,
-                                      selector,
+                                      dataset,
+                                      bp_selector,
                                       backpropper,
                                       args.batch_size,
                                       loss_fn,
                                       max_num_backprops=args.max_num_backprops,
-                                      lr_schedule=args.lr_sched)
+                                      lr_schedule=args.lr_sched,
+                                      forwardlr=args.forwardlr)
 
     logger = lib.loggers.Logger(log_interval = args.log_interval,
                                 epoch=start_epoch,
                                 num_backpropped=start_num_backpropped,
-                                num_skipped=start_num_skipped)
+                                num_skipped=start_num_skipped,
+                                start_time_seconds = start_time_seconds
+                                )
     image_id_hist_logger = lib.loggers.ImageIdHistLogger(args.pickle_dir,
                                                          args.pickle_prefix,
                                                          dataset.num_training_images,
@@ -565,9 +604,11 @@ def main(args):
                                                        args.losses_log_interval)
     probability_by_image_logger = lib.loggers.ProbabilityByImageLogger(args.pickle_dir,
                                                                        args.pickle_prefix)
+
     if not args.no_logging:
-        trainer.on_forward_pass(logger.handle_forward_batch)
         trainer.on_backward_pass(logger.handle_backward_batch)
+        trainer.on_forward_pass(logger.handle_forward_batch)
+        trainer.on_forward_mark(logger.handle_forward_mark)
         trainer.on_backward_pass(image_id_hist_logger.handle_backward_batch)
         trainer.on_backward_pass(loss_hist_logger.handle_backward_batch)
         trainer.on_backward_pass(probability_by_image_logger.handle_backward_batch)
@@ -578,35 +619,45 @@ def main(args):
             trainer.on_backward_pass(bias_logger.handle_backward_batch)
 
     stopped = False
-
     epoch = start_epoch
+
+    eval_every_n = args.batch_size * 10
+    last_global_num_backpropped = 0
 
     while True:
 
         if stopped: break
 
-        trainloader = torch.utils.data.DataLoader(dataset.trainset,
-                                                  batch_size=args.batch_size,
-                                                  shuffle=True,
-                                                  num_workers=0)
-        test(args, dataset, device, epoch, state, logger, loss_fn)
+        for dataset_split in dataset.get_dataset_splits(first_split_size=num_images_to_prime):
 
-        trainer.train(trainloader)
-        logger.next_partition()
-        if trainer.stopped:
-            stopped = True
-            break
+            if not args.no_logging:
+                if logger.global_num_backpropped - last_global_num_backpropped > eval_every_n: 
+                    mini_test(args, dataset, device, epoch, state, logger, trainer, loss_fn)
+                    last_global_num_backpropped = logger.global_num_backpropped
 
+            dataset_sampler = torch.utils.data.SubsetRandomSampler(dataset_split)
+            trainloader = torch.utils.data.DataLoader(dataset.trainset,
+                                                      batch_size=args.batch_size,
+                                                      sampler=dataset_sampler,
+                                                      num_workers=2)
+
+            trainer.train(trainloader)
+            logger.next_partition()
+            if selector:
+                selector.next_partition(len(dataset_split))
+            backpropper.next_partition(len(dataset_split))
+            if trainer.stopped:
+                stopped = True
+                break
+
+        test(args, dataset, device, epoch, state, logger, trainer, loss_fn, args.no_logging)
         logger.next_epoch()
-        image_id_hist_logger.next_epoch()
-        loss_hist_logger.next_epoch()
-        probability_by_image_logger.next_epoch()
-        backpropper.next_epoch()
-        if selector:
-            selector.next_epoch()
-        if args.log_bias:
-            bias_logger.next_epoch()
+        if not args.no_logging:
             final_backpropper.next_epoch()
+            loss_hist_logger.next_epoch()
+            probability_by_image_logger.next_epoch()
+                if args.log_bias:
+                    bias_logger.next_epoch()
         epoch += 1
 
 if __name__ == '__main__':
