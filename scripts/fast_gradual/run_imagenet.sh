@@ -2,8 +2,10 @@ expname=$1
 SAMPLING_MIN=$2
 NET="resnet"
 BATCH_SIZE=128
-START_EPOCH=1
+PROB_STRATEGY="relative-cubed"
+LOSS="cross"
 
+START_EPOCH=1
 NUM_TRIALS=1
 
 set -x
@@ -19,7 +21,7 @@ MAX_NUM_BACKPROPS=25802100
 SEED=1337
 DATA_DIR="/proj/BigLearning/ahjiang/datasets/imagenet-data"
 
-EXP_NAME=$EXP_PREFIX
+EXP_NAME=$EXP_PREFIX"_"$PROB_STRATEGY"_"$LOSS
 
 mkdir "/proj/BigLearning/ahjiang/output/imagenet/"
 OUTPUT_DIR="/proj/BigLearning/ahjiang/output/imagenet/"$EXP_NAME
@@ -37,13 +39,20 @@ do
 
   echo $OUTPUT_DIR/$OUTPUT_FILE
 
-  python imagenet.py \
-    --strategy=logbias \
+  time python main.py \
+    --prob-strategy=$PROB_STRATEGY \
+    --prob-loss-fn=$LOSS \
     --dataset=imagenet \
     --datadir=$DATA_DIR \
+    --sb-strategy=$SAMPLING_STRATEGY \
+    --sb-start-epoch=$START_EPOCH \
     --net=$NET \
     --batch-size=$BATCH_SIZE \
     --decay=$DECAY \
+    --max-num-backprops=$MAX_NUM_BACKPROPS \
+    --pickle-dir=$PICKLE_DIR \
+    --pickle-prefix=$PICKLE_PREFIX \
+    --sampling-min=$SAMPLING_MIN \
     --augment \
     --seed=$SEED \
     --lr-sched $LR &> $OUTPUT_DIR/$OUTPUT_FILE

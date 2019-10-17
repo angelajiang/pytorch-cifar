@@ -328,7 +328,6 @@ def print_config(args):
     print("config loss-fn {}".format(args.loss_fn))
     print("config sb-strategy {}".format(args.sb_strategy))
     print("config prob-strategy {}".format(args.prob_strategy))
-    print("config fp-prob-strategy {}".format(args.fp_prob_strategy))
     print("config prob-loss-fn {}".format(args.prob_loss_fn))
     print("config max-num-backprops {}".format(args.max_num_backprops))
     print("config sampling-min {}".format(args.sampling_min))
@@ -470,7 +469,6 @@ def main(args):
         print("Error: Loss function cannot be {}".format(args.loss_fn))
         exit()
 
-
     # Miscellaneous setup
 
     state = State(dataset.num_training_images,
@@ -555,29 +553,27 @@ def main(args):
                                               max_num_backprops=args.max_num_backprops,
                                               lr_schedule=args.lr_sched)
     elif args.log_bias:
-        selector = lib.selectors.PrimedSelector(lib.selectors.BaselineSelector(),
-                                                final_selector,
-                                                args.sb_start_epoch,
-                                                epoch=start_epoch)
         backpropper = lib.backproppers.RandomGradientAndSelectivityLoggingBackpropper(device,
                                                                                       dataset.model,
                                                                                       optimizer,
                                                                                       loss_fn,
                                                                                       10,
                                                                                       BIAS_LOG_INTERVAL)
+        trainer = lib.trainer.Trainer(device,
+                                      dataset.model,
+                                      dataset,
+                                      selector,
+                                      backpropper,
+                                      args.batch_size,
+                                      loss_fn,
+                                      max_num_backprops=args.max_num_backprops,
+                                      lr_schedule=args.lr_sched,
+                                      forwardlr=args.forwardlr)
     else:
-        selector = lib.selectors.PrimedSelector(lib.selectors.BaselineSelector(),
-                                                final_selector,
-                                                args.sb_start_epoch,
-                                                epoch=start_epoch)
-
-        backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.BaselineBackpropper(device,
-                                                                                              dataset.model,
-                                                                                              optimizer,
-                                                                                              loss_fn),
-                                                         final_backpropper,
-                                                         args.sb_start_epoch,
-                                                         epoch=start_epoch)
+        backpropper = lib.backproppers.SamplingBackpropper(device,
+                                                           dataset.model,
+                                                           optimizer,
+                                                           loss_fn)
         trainer = lib.trainer.Trainer(device,
                                       dataset.model,
                                       dataset,
@@ -652,12 +648,16 @@ def main(args):
 
         test(args, dataset, device, epoch, state, logger, trainer, loss_fn, args.no_logging)
         logger.next_epoch()
+        final_backpropper.next_epoch()
+        loss_hist_logger.next_epoch()
+        probability_by_image_logger.next_epoch()
         if not args.no_logging:
-            final_backpropper.next_epoch()
+            image_id_hist_logger.next_epoch()
             loss_hist_logger.next_epoch()
             probability_by_image_logger.next_epoch()
-                if args.log_bias:
-                    bias_logger.next_epoch()
+            if args.log_bias:
+                bias_logger.next_epoch()
+
         epoch += 1
 
 if __name__ == '__main__':

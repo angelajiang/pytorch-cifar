@@ -86,22 +86,24 @@ class GradientAndSelectivityLoggingBackpropper(SamplingBackpropper):
         self.num_trained = 0
 
     def _get_data_tensor(self, batch):
-        data = [example.datum for example in batch]
+        data = [em.example.datum for em in batch]
         return torch.stack(data)
 
     def _get_targets_tensor(self, batch):
-        targets = [example.target for example in batch]
+        targets = [em.example.target for em in batch]
         return torch.stack(targets)
 
     def _get_data_subset(self, batch, fraction):
         subset_size = int(fraction * len(batch))
-        subset = sorted(batch, key=lambda x: x.loss, reverse=True)[:subset_size]
-        chosen_losses = [exp.loss for exp in subset]
-        return self._get_data_tensor(subset), self._get_targets_tensor(subset)
+        subset = sorted(batch, key=lambda x: x.example.loss, reverse=True)[:subset_size]
+        chosen_losses = [em.example.loss for em in subset]
+        return subset
 
     def log_gradients(self, batch):
 
-        baseline_data, baseline_targets = self._get_data_subset(batch, 1)
+        subset = self._get_data_subset(batch, 1)
+        baseline_data = self._get_data_tensor(subset).to(self.device)
+        baseline_targets = self._get_targets_tensor(subset).to(self.device)
         baseline_outputs = self.net(baseline_data) 
         baseline_loss = self.loss_fn(reduce=True)(baseline_outputs, baseline_targets)
 
@@ -116,7 +118,9 @@ class GradientAndSelectivityLoggingBackpropper(SamplingBackpropper):
         cosine_sim_data = {}
         fraction_same_data = {}
         for fraction in fractions:
-            chosen_data, chosen_targets = self._get_data_subset(batch, fraction)
+            subset = self._get_data_subset(batch, fraction)
+            chosen_data = self._get_data_tensor(subset).to(self.device)
+            chosen_targets = self._get_targets_tensor(subset).to(self.device)
             chosen_outputs = self.net(chosen_data) 
             chosen_loss = self.loss_fn(reduce=True)(chosen_outputs, chosen_targets)
 
@@ -164,10 +168,14 @@ class GradientAndSelectivityLoggingBackpropper(SamplingBackpropper):
         if self.num_trained % self.examples_log_interval == 0:
             self.log_gradients(batch)
 
-        baseline_data, baseline_targets = self._get_data_subset(batch, 1)
+        subset = self._get_data_subset(batch, 1)
+        baseline_data = self._get_data_tensor(subset).to(self.device)
+        baseline_targets = self._get_targets_tensor(subset).to(self.device)
         baseline_outputs = self.net(baseline_data) 
         baseline_losses = self.loss_fn(reduce=False)(baseline_outputs, baseline_targets)
         baseline_loss = baseline_losses.mean()
+        _, predicted = baseline_outputs.max(1)
+        is_corrects = predicted.eq(baseline_targets)
 
         # Do an extra backwards pass to make sure we're backpropping baseline
         self.optimizer.zero_grad()
@@ -175,8 +183,8 @@ class GradientAndSelectivityLoggingBackpropper(SamplingBackpropper):
         self.optimizer.step()
 
         # Add for logging selected loss
-        for em, loss, is_correct in zip(chosen_batch,
-                                        losses,
+        for em, loss, is_correct in zip(subset,
+                                        baseline_losses,
                                         is_corrects):
             em.example.loss = loss.item()
             em.example.correct = is_correct.item()
