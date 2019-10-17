@@ -1,9 +1,12 @@
+from PIL import Image
 import math
 import numpy as np
 import torch
 import time
 import torch.nn as nn
 from timeit import default_timer as timer
+import torchvision.transforms as transforms
+import torchvision.transforms.functional as TF
 
 
 def CosineSim(a, b):
@@ -30,6 +33,79 @@ class PrimedBackpropper(object):
     def backward_pass(self, *args, **kwargs):
         return self.get_backpropper().backward_pass(*args, **kwargs)
 
+class AugmentedBackpropper(object):
+
+    def __init__(self, device, net, optimizer, loss_fn):
+        self.optimizer = optimizer
+        self.net = net
+        self.device = device
+        self.loss_fn = loss_fn
+
+        self.t_crop = transforms.Compose([transforms.ToPILImage(),
+                                          transforms.RandomCrop(32, padding=4),
+                                          transforms.ToTensor()])
+
+        self.t_hflip = transforms.Compose([transforms.ToPILImage(),
+                                           transforms.RandomHorizontalFlip(),
+                                           transforms.ToTensor()])
+
+    def _get_chosen_examples(self, batch):
+        return [em for em in batch if em.example.select]
+
+    def _get_chosen_data_tensor(self, batch, t):
+        chosen_data = [t(em.example.datum) for em in batch]
+        return torch.stack(chosen_data)
+
+
+    def _get_chosen_targets_tensor(self, batch):
+        chosen_targets = [em.example.target for em in batch]
+        return torch.stack(chosen_targets)
+
+    def backward_pass(self, batch):
+        self.net.train()
+
+        chosen_batch = self._get_chosen_examples(batch)
+
+        all_transforms = [self.t_crop, self.t_hflip]
+        for batch_item in chosen_batch:
+            print("--------------------------------") 
+            for t in all_transforms:
+                augmented_losses = []
+                for i in range(128):
+                    #data = self._get_chosen_data_tensor([batch_item], self.t_crop).to(self.device)
+                    data = self._get_chosen_data_tensor([batch_item], self.t_hflip).to(self.device)
+                    targets = self._get_chosen_targets_tensor([batch_item]).to(self.device)
+
+                    # Run forward pass
+                    outputs = self.net(data) 
+                    losses = self.loss_fn(reduce=False)(outputs, targets)
+                    softmax_outputs = nn.Softmax()(outputs)             # OPT: not necessary when logging is off
+                    _, predicted = outputs.max(1)
+                    is_corrects = predicted.eq(targets)
+                    loss = losses.mean()
+                    augmented_losses.append(round(loss.item(), 3))
+                print(round(np.average(augmented_losses), 5),
+                      min(augmented_losses),
+                      max(augmented_losses),)
+
+
+        data = self._get_chosen_data_tensor(chosen_batch, self.t_crop).to(self.device)
+        targets = self._get_chosen_targets_tensor(chosen_batch).to(self.device)
+
+        # Run forward pass
+        outputs = self.net(data) 
+        losses = self.loss_fn(reduce=False)(outputs, targets)
+        softmax_outputs = nn.Softmax()(outputs)             # OPT: not necessary when logging is off
+        _, predicted = outputs.max(1)
+        is_corrects = predicted.eq(targets)
+        loss = losses.mean()
+
+        # Run backwards pass
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        return batch
 
 class SamplingBackpropper(object):
 
@@ -45,6 +121,7 @@ class SamplingBackpropper(object):
     def _get_chosen_data_tensor(self, batch):
         chosen_data = [em.example.datum for em in batch]
         return torch.stack(chosen_data)
+
 
     def _get_chosen_targets_tensor(self, batch):
         chosen_targets = [em.example.target for em in batch]

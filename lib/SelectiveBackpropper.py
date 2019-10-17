@@ -42,6 +42,7 @@ class SelectiveBackpropper:
         prob_loss_fn = nn.CrossEntropyLoss
         loss_fn = nn.CrossEntropyLoss
         sample_size = 0 # only needed for kath, topk, lowk
+        self.strategy = strategy
 
         # Params for resuming from checkpoint
         start_epoch = 0
@@ -70,6 +71,18 @@ class SelectiveBackpropper:
                                                                 model,
                                                                 optimizer,
                                                                 loss_fn)
+            self.trainer = trainer.NoFilterTrainer(device,
+                                                   model,
+                                                   self.backpropper,
+                                                   batch_size,
+                                                   loss_fn,
+                                                   lr_schedule=lr_sched,
+                                                   forwardlr=forwardlr)
+        elif strategy == "logaugment":
+            self.backpropper = backproppers.AugmentedBackpropper(device,
+                                                                 model,
+                                                                 optimizer,
+                                                                 loss_fn)
             self.trainer = trainer.NoFilterTrainer(device,
                                                    model,
                                                    self.backpropper,
@@ -160,7 +173,8 @@ class SelectiveBackpropper:
 
     def next_epoch(self):
         self.logger.next_epoch()
-        self.bias_logger.next_epoch()
+        if self.strategy == "logbias":
+            self.bias_logger.next_epoch()
 
     def next_partition(self):
         if self.selector is not None:

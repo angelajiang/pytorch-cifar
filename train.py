@@ -53,7 +53,7 @@ def set_random_seeds(seed):
     return
 
 def set_experiment_default_args(parser):
-    strategy_options = ['nofilter', 'sb', 'kath', 'logbias']
+    strategy_options = ['nofilter', 'sb', 'kath', 'logbias', 'logaugment']
     calculator_options = ['relative', 'random', 'hybrid']
     fp_selector_options = ['alwayson', 'stale']
 
