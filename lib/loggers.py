@@ -9,6 +9,64 @@ import torchvision.transforms as transforms
 from PIL import Image
 
 
+class BiasByEpochLogger(object):
+
+    def __init__(self, pickle_dir, pickle_prefix, batch_log_frequency):
+        self.current_epoch = 0
+        self.current_batch = 0
+        self.pickle_dir = pickle_dir
+        self.batch_log_frequency = batch_log_frequency
+        self.pickle_prefix = pickle_prefix
+        self.init_data()
+
+    def next_epoch(self):
+        self.current_epoch += 1
+        self.data = self.base_dict(self.current_epoch)
+
+    def base_dict(self, epoch):
+        return {"epoch": epoch,
+                "selectivities": [],
+                "cos_sims": [],
+                "losses": [],
+                "fraction_same": []}
+
+    def init_data(self):
+        # {"epoch": 0,
+        #       "selectivities": [0.1, 0.3...],
+        #       "fraction_same": [0.9, 0.7...],
+        #       "cos_sims": [[0.1, 0.2, 0.3],... ],    # Per variable, per batch
+        #       "losses": [2.7, 2.3, 2.3], 
+        # }
+        self.data = self.base_dict(0)
+        data_pickle_dir = os.path.join(self.pickle_dir, "biases")
+        self.data_pickle_file = os.path.join(data_pickle_dir,
+                                                 "{}_biases".format(self.pickle_prefix))
+        if not os.path.exists(data_pickle_dir):
+            os.mkdir(data_pickle_dir)
+
+    def handle_backward_batch(self, batch):
+        self.current_batch += 1
+        if hasattr(batch[0], "cos_sims"):
+            print("[bias_logger] Handling batch {}".format(self.current_batch))
+            cos_sims = batch[0].cos_sims
+            fraction_same = batch[0].fraction_same
+            average_loss = sum([em.example.loss for em in batch]) / float(len(batch))
+            selectivity = sum([1 for em in batch if em.example.select]) / float(len(batch))
+            self.data["losses"].append(average_loss)
+            self.data["selectivities"].append(selectivity)
+            self.data["cos_sims"].append(cos_sims)
+            self.data["fraction_same"].append(fraction_same)
+
+        if self.current_batch % self.batch_log_frequency == 0:
+            epoch_file = "{}.epoch_{}_batch_{}.pickle".format(self.data_pickle_file,
+                                                              self.current_epoch,
+                                                              self.current_batch)
+            print("[bias_logger] Writing data from batch {} to {}".format(self.current_batch,
+                                                                          epoch_file))
+            with open(epoch_file, "wb") as handle:
+                pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
 class ImageWriter(object):
     def __init__(self, data_dir, dataset, unnormalizer):
         self.data_dir = data_dir

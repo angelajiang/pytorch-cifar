@@ -35,6 +35,7 @@ class SelectiveBackpropper:
         #num_images_to_prime = 0
 
         log_interval = 1
+        bias_batch_log_interval = 1000
         sampling_min = 0
         sampling_max = 1
         max_history_len = 1024
@@ -76,6 +77,45 @@ class SelectiveBackpropper:
                                                    loss_fn,
                                                    lr_schedule=lr_sched,
                                                    forwardlr=forwardlr)
+        elif strategy == "logbias":
+            probability_calculator = calculators.get_probability_calculator(calculator,
+                                                                            device,
+                                                                            prob_loss_fn,
+                                                                            sampling_min,
+                                                                            sampling_max,
+                                                                            num_classes,
+                                                                            max_history_len,
+                                                                            prob_pow)
+            self.selector = selectors.get_selector("sampling",
+                                                   probability_calculator,
+                                                   num_images_to_prime,
+                                                   sample_size)
+            self.fp_selector = fp_selectors.get_selector("alwayson",
+                                                         num_images_to_prime,
+                                                         staleness=staleness)
+
+            self.backpropper = backproppers.GradientAndSelectivityLoggingBackpropper(device,
+                                                                                     model,
+                                                                                     optimizer,
+                                                                                     loss_fn,
+                                                                                     10,
+                                                                                     bias_batch_log_interval)
+            self.trainer = trainer.MemoizedTrainer(device,
+                                                   model,
+                                                   self.selector,
+                                                   self.fp_selector,
+                                                   self.backpropper,
+                                                   batch_size,
+                                                   loss_fn,
+                                                   lr_schedule=lr_sched,
+                                                   forwardlr=forwardlr)
+
+
+            self.bias_logger = loggers.BiasByEpochLogger("/tmp",
+                                                    "test",
+                                                    bias_batch_log_interval)
+            self.trainer.on_backward_pass(self.bias_logger.handle_backward_batch)
+
         else:
             probability_calculator = calculators.get_probability_calculator(calculator,
                                                                             device,
@@ -120,6 +160,7 @@ class SelectiveBackpropper:
 
     def next_epoch(self):
         self.logger.next_epoch()
+        self.bias_logger.next_epoch()
 
     def next_partition(self):
         if self.selector is not None:

@@ -16,7 +16,6 @@ SAMPLING_STRATEGY="sampling"
 LR="data/config/lr_sched_imagenet_gradual"
 DECAY=0.0001
 MAX_NUM_BACKPROPS=25802100
-#MAX_NUM_BACKPROPS=860070
 SEED=1337
 DATA_DIR="/proj/BigLearning/ahjiang/datasets/imagenet-data"
 
@@ -38,18 +37,13 @@ do
 
   echo $OUTPUT_DIR/$OUTPUT_FILE
 
-  time python main.py \
+  python imagenet.py \
+    --strategy=logbias \
     --dataset=imagenet \
     --datadir=$DATA_DIR \
-    --sb-strategy=$SAMPLING_STRATEGY \
-    --sb-start-epoch=$START_EPOCH \
     --net=$NET \
     --batch-size=$BATCH_SIZE \
     --decay=$DECAY \
-    --max-num-backprops=$MAX_NUM_BACKPROPS \
-    --pickle-dir=$PICKLE_DIR \
-    --pickle-prefix=$PICKLE_PREFIX \
-    --sampling-min=$SAMPLING_MIN \
     --augment \
     --seed=$SEED \
     --lr-sched $LR &> $OUTPUT_DIR/$OUTPUT_FILE

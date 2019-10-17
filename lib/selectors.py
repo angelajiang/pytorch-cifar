@@ -110,13 +110,8 @@ class SamplingSelector(object):
         self.forwards = forwards
 
     def select(self, example):
-        select_probability = example.get_sp(self.forwards)
-        if hasattr(example, "fp_draw"):
-            draw = example.fp_draw
-            print("Use old fp_draw: {:2f} > {:2f}".format(draw,
-                                                            select_probability))
-        else:
-            draw = np.random.uniform(0, 1)
+        select_probability = example.select_probability
+        draw = np.random.uniform(0, 1)
         return draw < select_probability
 
     def mark(self, forward_pass_batch):
@@ -141,7 +136,7 @@ class BaselineSelector(object):
     def mark(self, forward_pass_batch):
         for em in forward_pass_batch:
             em.example.select_probability = torch.tensor([[1]]).item()
-            em.example.select = self.select(em.example)
+            em.example.select = True
         return forward_pass_batch
 
 
