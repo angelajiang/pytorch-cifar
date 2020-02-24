@@ -51,6 +51,8 @@ class SelectiveBackpropper:
 
         self.selector = None
         self.fp_selector = None
+        self.bias_logger = None
+
         if strategy == "kath":
             self.selector = None
             self.backpropper = backproppers.SamplingBackpropper(device,
@@ -160,7 +162,8 @@ class SelectiveBackpropper:
 
     def next_epoch(self):
         self.logger.next_epoch()
-        self.bias_logger.next_epoch()
+        if self.bias_logger is not None:
+            self.bias_logger.next_epoch()
 
     def next_partition(self):
         if self.selector is not None:
