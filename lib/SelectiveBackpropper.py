@@ -25,14 +25,16 @@ class SelectiveBackpropper:
                  kath_oversampling_rate,
                  calculator="relative",
                  fp_selector_type="alwayson",
-                 staleness=2):
+                 staleness=2,
+                 spline_y1=None,
+                 spline_y2=None,
+                 spline_y3=None):
 
         ## Hardcoded params
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         assert device == "cuda"
         self.num_training_images = num_training_images
         num_images_to_prime = self.num_training_images
-        #num_images_to_prime = 0
 
         log_interval = 1
         bias_batch_log_interval = 1000
@@ -51,6 +53,7 @@ class SelectiveBackpropper:
 
         self.selector = None
         self.fp_selector = None
+        self.bias_logger = None
         if strategy == "kath":
             self.selector = None
             self.backpropper = backproppers.SamplingBackpropper(device,
@@ -85,7 +88,10 @@ class SelectiveBackpropper:
                                                                             sampling_max,
                                                                             num_classes,
                                                                             max_history_len,
-                                                                            prob_pow)
+                                                                            prob_pow,
+                                                                            spline_y1,
+                                                                            spline_y2,
+                                                                            spline_y3)
             self.selector = selectors.get_selector("sampling",
                                                    probability_calculator,
                                                    num_images_to_prime,
@@ -124,7 +130,10 @@ class SelectiveBackpropper:
                                                                             sampling_max,
                                                                             num_classes,
                                                                             max_history_len,
-                                                                            prob_pow)
+                                                                            prob_pow,
+                                                                            spline_y1,
+                                                                            spline_y2,
+                                                                            spline_y3)
             self.selector = selectors.get_selector("sampling",
                                                    probability_calculator,
                                                    num_images_to_prime,
@@ -160,7 +169,8 @@ class SelectiveBackpropper:
 
     def next_epoch(self):
         self.logger.next_epoch()
-        self.bias_logger.next_epoch()
+        if self.bias_logger:
+            self.bias_logger.next_epoch()
 
     def next_partition(self):
         if self.selector is not None:

@@ -7,6 +7,7 @@ import torch.nn as nn
 from random import shuffle
 import lib.predictors
 import lib.hist
+from scipy.interpolate import interp1d
 
 # TODO: Transform into base classes
 def get_probability_calculator(calculator_type,
@@ -16,7 +17,10 @@ def get_probability_calculator(calculator_type,
                                sampling_max,
                                num_classes,
                                max_history_len,
-                               prob_pow):
+                               prob_pow,
+                               spline_y1,
+                               spline_y2,
+                               spline_y3):
     ## Setup Trainer:ProbabilityCalculator ##
     if prob_pow:
         prob_transform = lambda x: torch.pow(x, prob_pow)
@@ -36,6 +40,13 @@ def get_probability_calculator(calculator_type,
                                                                       sampling_min,
                                                                       max_history_len,
                                                                       prob_pow)
+    elif calculator_type == "spline":
+        probability_calculator = BatchedRelativeSplineProbabilityCalculator(device,
+                                                                            sampling_min,
+                                                                            max_history_len,
+                                                                            spline_y1,
+                                                                            spline_y2,
+                                                                            spline_y3)
     elif calculator_type == "random":
         probability_calculator = BatchedRandomProbabilityCalculator(device,
                                                                     sampling_min,
@@ -79,6 +90,23 @@ class BatchedRelativeProbabilityCalculator(object):
         self.update_history(losses)
         probs = [max(self.sampling_min, self.calculate_probability(loss)) for loss in losses]
         return probs
+
+class BatchedRelativeSplineProbabilityCalculator(BatchedRelativeProbabilityCalculator):
+    def __init__(self, device, sampling_min, history_length, spline_y1, spline_y2, spline_y3):
+        super(BatchedRelativeSplineProbabilityCalculator, self).__init__(device,
+                                                                         sampling_min,
+                                                                         history_length,
+                                                                         None)
+        self.spline_xs = [0, 0.5, 1]
+        self.spline_y1 = spline_y1
+        self.spline_y2 = spline_y2
+        self.spline_y3 = spline_y3
+        self.spline_f = interp1d(self.spline_xs, [self.spline_y1, self.spline_y2, self.spline_y3], kind="quadratic")
+
+    def calculate_probability(self, loss):
+        percentile = self.historical_losses.percentile_of_score(loss) / 100.
+        probability = self.spline_f(percentile)
+        return probability
 
 class BatchedSelectProbabilityCalculator(object):
     def __init__(self, sampling_min, sampling_max, num_classes, device, prob_transform=None):
